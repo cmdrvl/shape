@@ -1,182 +1,76 @@
 # shape
 
-**Structural comparability gate — can these two CSV datasets be compared at all?**
+<div align="center">
 
-*Built for teams who need to know whether two files are structurally compatible before running analysis.*
+[![CI](https://github.com/cmdrvl/shape/actions/workflows/ci.yml/badge.svg)](https://github.com/cmdrvl/shape/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/cmdrvl/shape)](https://github.com/cmdrvl/shape/releases)
 
----
-
-## Why This Exists
-
-Before you can compare two CSV exports, you need to know if comparison is even meaningful. Do the columns match? Is the key column unique? Did the schema drift? `shape` answers these questions deterministically — before you waste time diffing.
-
-- **COMPATIBLE** — columns align, key is viable, types are consistent. Safe to proceed with `rvl`, `compare`, or `verify`.
-- **INCOMPATIBLE** — structural mismatch with explicit reasons. Tells you exactly what broke.
-- **REFUSAL** — when parsing or reading fails, with a concrete next step.
-
-No guessing. No silent schema drift. Just a structural gate or an explanation of why it failed.
-
----
-
-## Install
-
-**Homebrew (macOS / Linux):**
-
-```bash
-brew install cmdrvl/tap/shape
-```
-
-**Shell script (macOS / Linux):**
+**Structural comparability gate — know whether two CSV datasets can be compared before you waste time trying.**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.sh | bash
 ```
 
-**Windows (PowerShell):**
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.ps1'))
-```
-
-**From source:**
-
-```bash
-cargo build --release
-./target/release/shape --help
-```
-
-Prebuilt binaries are available for x86_64 and ARM64 on Linux, macOS, and Windows (x86_64). Each release includes SHA256 checksums, cosign signatures, and an SBOM.
+</div>
 
 ---
 
-## Quickstart
+## TL;DR
 
-Check if two CSVs are structurally compatible:
+**The Problem**: Before you can compare two CSV exports, you need to know if comparison is even meaningful. Do the columns match? Is the key unique? Did the schema drift? Finding out mid-analysis wastes time and produces misleading results.
 
-```bash
-shape old.csv new.csv
-```
+**The Solution**: One structural gate. `shape` checks schema overlap, key viability, row granularity, and type consistency — then gives a deterministic verdict before you run any analysis.
 
-Check with a specific key column:
+### Why Use shape?
 
-```bash
-shape old.csv new.csv --key loan_id
-```
-
-Machine-readable JSON:
-
-```bash
-shape old.csv new.csv --key loan_id --json
-```
+| Feature | What It Does |
+|---------|--------------|
+| **Four structural checks** | Schema overlap, key viability, row granularity, type consistency — all at once |
+| **Three clear outcomes** | COMPATIBLE, INCOMPATIBLE, or REFUSAL — never ambiguous |
+| **Concrete reasons** | When incompatible, tells you exactly what broke and why |
+| **Machine-readable** | `--json` output for pipelines and CI gates |
+| **Pairs with rvl** | Run `shape` first to validate structure, then [`rvl`](https://github.com/cmdrvl/rvl) to explain numeric changes |
+| **Ambient witness ledger** | Every comparison is recorded for audit trails (opt-out with `--no-witness`) |
 
 ---
 
-## Optional: Auto Proceed Nudges (for NTM sessions)
-
-If you run multi-agent sessions and want periodic `proceed` nudges, use:
+## Quick Example
 
 ```bash
-scripts/ntm_proceed_ctl.sh start --session codex53-high
+$ shape nov.csv dec.csv --key loan_id
 ```
 
-This feature is **off by default**. When started with defaults, it:
+```
+SHAPE
 
-- Runs every `10m`
-- Sends only during overnight hours (`20:00` to `08:00`, local time)
-- Sends only if there are open or in-progress beads
+COMPATIBLE
 
-Check/stop it:
+Compared: nov.csv -> dec.csv
+Key: loan_id (unique in both files)
+Dialect(old): delimiter=, quote=" escape=none
+Dialect(new): delimiter=, quote=" escape=none
+
+Schema:    22 common / 22 total (100% overlap)
+Key:       loan_id — unique in both, coverage=1.0
+Rows:      3,214 old / 3,201 new (13 removed, 0 added, 3,201 overlap)
+Types:     12 numeric columns, 0 type shifts
+```
+
+All four checks pass. These files are structurally compatible — safe to proceed with `rvl`, `compare`, or `verify`.
 
 ```bash
-scripts/ntm_proceed_ctl.sh status
-scripts/ntm_proceed_ctl.sh stop
+# Gate a pipeline (shape before rvl):
+$ shape nov.csv dec.csv --key loan_id --json > shape.json \
+    && rvl nov.csv dec.csv --key loan_id --json > rvl.json
+
+# Exit code only (for scripts):
+$ shape old.csv new.csv > /dev/null 2>&1
+$ echo $?  # 0 = compatible, 1 = incompatible, 2 = refused
+
+# Machine-readable:
+$ shape old.csv new.csv --json | jq '.checks.schema_overlap'
 ```
-
-Useful overrides:
-
-```bash
-# Enable during daytime too
-scripts/ntm_proceed_ctl.sh start --session codex53-high --mode always
-
-# Custom overnight window and interval
-scripts/ntm_proceed_ctl.sh start --session codex53-high --overnight-start 21 --overnight-end 7 --interval 15m
-```
-
----
-
-## CLI Reference
-
-```
-shape <old.csv> <new.csv> [OPTIONS]
-shape witness <query|last|count> [OPTIONS]
-```
-
-### Flags
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--key <column>` | string | *(none)* | Key column to check for alignment viability (uniqueness, coverage). |
-| `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
-| `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
-| `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
-| `--profile <path>` | path | *(none)* | Reserved in v0: parsed, but not yet applied to check scoping. |
-| `--profile-id <id>` | string | *(none)* | Reserved in v0: parsed and echoed as `profile_id` in JSON; no check-scoping effect yet. |
-| `--lock <lockfile>` | path | *(none)* | Reserved in v0: parsed, but lock verification is not yet enforced. |
-| `--max-rows <n>` | integer | *(unlimited)* | Reserved in v0: parsed, but row-limit refusal is not yet enforced. |
-| `--max-bytes <n>` | integer | *(unlimited)* | Reserved in v0: parsed, but byte-limit refusal is not yet enforced. |
-| `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
-
-### Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| `0` | COMPATIBLE |
-| `1` | INCOMPATIBLE |
-| `2` | REFUSAL or CLI error |
-
-For `shape witness <...>` subcommands:
-- `0` = one or more matching records returned
-- `1` = no matches (or empty ledger for `last`)
-- `2` = CLI parse error or witness internal error (for example, unreadable ledger path)
-
-### Output Routing
-
-| Mode | COMPATIBLE | INCOMPATIBLE | REFUSAL |
-|------|------------|--------------|---------|
-| Human (default) | stdout | stdout | stderr |
-| `--json` | stdout | stdout | stdout |
-
-In `--json` mode, stderr is reserved for process-level failures only (CLI parse errors, panics).
-
-`--profile`, `--profile-id`, `--lock`, `--max-rows`, and `--max-bytes` are intentionally accepted early for operator-schema stability; runtime enforcement is deferred.
-
-For witness subcommands:
-- Human mode writes successful results to stdout and no-match/internal messages to stderr.
-- `--json` writes structured payloads to stdout, while no-match messages still appear on stderr.
-
-## Witness Subcommands
-
-`shape` now accepts witness subcommand syntax:
-
-```bash
-shape witness query [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
-  [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] \
-  [--limit <n>] [--json]
-
-shape witness last [--json]
-
-shape witness count [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
-  [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] [--json]
-```
-
-Current runtime behavior:
-- `query` returns matching witness records.
-- `last` returns the most recent witness record.
-- `count` returns the number of matching records.
-- All three commands read from `EPISTEMIC_WITNESS` when set, otherwise `~/.epistemic/witness.jsonl`.
-- Malformed ledger lines are skipped; valid lines continue to be processed.
-
-Ambient witness recording for compare runs is enabled by default; pass `--no-witness` to suppress appending for a specific run.
 
 ---
 
@@ -288,6 +182,109 @@ Checks whether any common columns changed type between files.
 
 ---
 
+## How shape Compares
+
+| Capability | shape | Manual inspection | csvkit | pandas profiling |
+|------------|-------|-------------------|--------|-----------------|
+| Schema overlap check | ✅ Automated | ❌ Eyeball headers | ⚠️ `csvstat` per-file | ⚠️ You write it |
+| Key uniqueness validation | ✅ Both files | ❌ Manual | ⚠️ Separate step | ⚠️ You write it |
+| Type shift detection | ✅ Cross-file | ❌ | ❌ | ⚠️ Per-file only |
+| Single deterministic verdict | ✅ | ❌ | ❌ | ❌ |
+| Machine-readable output | ✅ `--json` | ❌ | ⚠️ Text | ✅ |
+| Audit trail (witness ledger) | ✅ Built-in | ❌ | ❌ | ❌ |
+| Setup time | ✅ One curl command | N/A | ⚠️ pip install | ⚠️ pip install + script |
+
+**When to use shape:**
+- Before running `rvl` — validate structure first, then explain numeric changes
+- Monthly reconciliation pipelines — catch schema drift before it corrupts results
+- CI gate — fail fast if upstream changed the export format
+
+**When shape might not be ideal:**
+- You need content comparison (use `rvl` for that)
+- You need data profiling (distributions, outliers) — use pandas or Great Expectations
+- You're comparing non-CSV formats
+
+---
+
+## Installation
+
+### Quick Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.sh | bash
+```
+
+### Package Managers
+
+```bash
+# macOS / Linux (Homebrew)
+brew install cmdrvl/tap/shape
+```
+
+```powershell
+# Windows (PowerShell)
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.ps1'))
+```
+
+### From Source
+
+```bash
+cargo build --release
+./target/release/shape --help
+```
+
+Prebuilt binaries are available for x86_64 and ARM64 on Linux, macOS, and Windows (x86_64). Each release includes SHA256 checksums, cosign signatures, and an SBOM.
+
+---
+
+## CLI Reference
+
+```
+shape <old.csv> <new.csv> [OPTIONS]
+```
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--key <column>` | string | *(none)* | Key column to check for alignment viability (uniqueness, coverage). |
+| `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
+| `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
+| `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
+| `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
+
+<details>
+<summary><strong>Reserved v0 flags</strong> (parsed for schema stability, not yet enforced at runtime)</summary>
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--profile <path>` | path | *(none)* | Profile for check scoping. |
+| `--profile-id <id>` | string | *(none)* | Echoed as `profile_id` in JSON output. |
+| `--lock <lockfile>` | path | *(none)* | Lock verification for inputs. |
+| `--max-rows <n>` | integer | *(unlimited)* | Row-limit refusal. |
+| `--max-bytes <n>` | integer | *(unlimited)* | Byte-limit refusal. |
+
+</details>
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | COMPATIBLE |
+| `1` | INCOMPATIBLE |
+| `2` | REFUSAL or CLI error |
+
+### Output Routing
+
+| Mode | COMPATIBLE | INCOMPATIBLE | REFUSAL |
+|------|------------|--------------|---------|
+| Human (default) | stdout | stdout | stderr |
+| `--json` | stdout | stdout | stdout |
+
+In `--json` mode, stderr is reserved for process-level failures only (CLI parse errors, panics).
+
+---
+
 ## Delimiter
 
 ### Auto-Detection (default)
@@ -322,6 +319,36 @@ Rules:
 
 ---
 
+## Scripting Examples
+
+Check if files are compatible (exit code only):
+
+```bash
+shape old.csv new.csv > /dev/null 2>&1
+echo $?  # 0 = compatible, 1 = incompatible, 2 = refused
+```
+
+Extract schema overlap from JSON:
+
+```bash
+shape old.csv new.csv --json | jq '.checks.schema_overlap'
+```
+
+Get incompatibility reasons:
+
+```bash
+shape old.csv new.csv --json | jq '.reasons'
+```
+
+Gate a pipeline (shape before rvl):
+
+```bash
+shape nov.csv dec.csv --key loan_id --json > shape.json \
+  && rvl nov.csv dec.csv --key loan_id --json > rvl.json
+```
+
+---
+
 ## Refusal Codes
 
 Every refusal includes the error code and a concrete next step.
@@ -334,16 +361,143 @@ Every refusal includes the error code and a concrete next step.
 | `E_EMPTY` | One or both files empty | Provide non-empty datasets |
 | `E_HEADERS` | Missing header or duplicate headers | Fix headers or re-export |
 | `E_DIALECT` | Delimiter ambiguous or undetectable | Use `--delimiter <delim>` |
+
+<details>
+<summary><strong>Reserved refusal codes</strong> (defined for schema stability, not emitted in v0)</summary>
+
+| Code | Meaning | Next Step |
+|------|---------|-----------|
 | `E_AMBIGUOUS_PROFILE` | Both `--profile` and `--profile-id` provided | Provide exactly one profile selector |
 | `E_INPUT_NOT_LOCKED` | Input not in any provided lockfile | Re-run with correct `--lock` or lock inputs first |
 | `E_INPUT_DRIFT` | Input hash doesn't match locked member | Use the locked file; regenerate lock if expected |
 | `E_TOO_LARGE` | Input exceeds `--max-rows` or `--max-bytes` | Increase limit or split input |
 
-`E_AMBIGUOUS_PROFILE`, `E_INPUT_NOT_LOCKED`, `E_INPUT_DRIFT`, and `E_TOO_LARGE` are defined for schema stability, but not emitted yet in v0 runtime paths.
+</details>
 
 ---
 
-## JSON Output (`--json`)
+## Troubleshooting
+
+### "E_EMPTY" — one or both files empty
+
+Your file has a header row but no data rows. Check that the export actually produced data:
+
+```bash
+wc -l old.csv new.csv
+```
+
+### "E_DIALECT" — delimiter detection failed
+
+Your file uses an uncommon delimiter or has inconsistent field counts. Force the delimiter:
+
+```bash
+shape old.csv new.csv --delimiter pipe      # for |
+shape old.csv new.csv --delimiter 0x09      # for tab
+shape old.csv new.csv --delimiter semicolon # for ;
+```
+
+### "E_HEADERS" — duplicate column names
+
+Two or more columns share the same header name. Fix at the source, or rename duplicates before running shape.
+
+### Key viability fails but the column looks unique
+
+Check for trailing whitespace, invisible characters, or encoding issues in key values. shape trims ASCII whitespace, but non-ASCII whitespace (e.g., NBSP) is preserved.
+
+### INCOMPATIBLE due to type shift — but the column looks numeric
+
+A cell in the new file has a value that can't be parsed as a number (e.g., `#REF!`, a stray string, or locale-specific formatting). The `type_shifts` field in JSON shows exactly which columns changed.
+
+---
+
+## Limitations
+
+| Limitation | Detail |
+|------------|--------|
+| **Structural only** | shape checks whether comparison is *possible*, not what changed. Use `rvl` for content diffs. |
+| **Two files only** | No multi-file or directory comparison. |
+| **In-memory** | Both files are loaded fully into memory. No streaming mode yet. |
+| **No column filtering** | All common columns are checked. You can't exclude specific columns in v0. |
+| **No content sampling** | shape doesn't look at data distributions or outliers — it checks structure only. |
+| **Profile/lock not enforced** | `--profile`, `--lock`, `--max-rows`, `--max-bytes` are parsed but have no runtime effect in v0. |
+
+---
+
+## FAQ
+
+### Why "shape"?
+
+It checks the *shape* of your data — schema, keys, row counts, types — before you compare content. If the shapes don't match, comparison is meaningless.
+
+### How does shape relate to rvl?
+
+`shape` validates structure. `rvl` explains numeric changes. Run `shape` first to confirm the files are comparable, then `rvl` to see what actually changed. They share delimiter detection and refusal patterns.
+
+### What's the witness ledger?
+
+Every `shape` comparison is appended to a local JSONL file (`~/.epistemic/witness.jsonl`, or `$EPISTEMIC_WITNESS`). This gives you an audit trail of every structural check. Suppress with `--no-witness`.
+
+### Can I query past comparisons?
+
+Yes, using witness subcommands. See [Witness Subcommands](#witness-subcommands) below.
+
+### Can I use this in CI/CD?
+
+Yes. Exit codes (0/1/2) and `--json` output are designed for automation. Gate on exit code, or parse the JSON for richer assertions.
+
+### What about non-CSV formats (Parquet, Excel)?
+
+Not supported. Convert to CSV first.
+
+---
+
+<details>
+<summary><strong>Witness Subcommands</strong></summary>
+
+`shape` records every comparison to an ambient witness ledger. You can query this ledger:
+
+```bash
+# Query by tool, date range, or outcome
+shape witness query --tool shape --since 2026-01-01 --outcome COMPATIBLE --json
+
+# Get the most recent comparison
+shape witness last --json
+
+# Count comparisons matching a filter
+shape witness count --since 2026-02-01
+```
+
+### Subcommand Reference
+
+```bash
+shape witness query [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
+  [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] \
+  [--limit <n>] [--json]
+
+shape witness last [--json]
+
+shape witness count [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
+  [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] [--json]
+```
+
+### Exit Codes (witness subcommands)
+
+| Code | Meaning |
+|------|---------|
+| `0` | One or more matching records returned |
+| `1` | No matches (or empty ledger for `last`) |
+| `2` | CLI parse error or witness internal error |
+
+### Ledger Location
+
+- Default: `~/.epistemic/witness.jsonl`
+- Override: set `EPISTEMIC_WITNESS` environment variable
+- Malformed ledger lines are skipped; valid lines continue to be processed.
+
+</details>
+
+<details>
+<summary><strong>JSON Output Reference</strong></summary>
 
 A single JSON object on stdout. If the process fails before domain evaluation (e.g., invalid CLI args), JSON may not be emitted.
 
@@ -411,35 +565,41 @@ Column names in JSON use unambiguous encoding:
 
 Same convention as `rvl`.
 
----
+</details>
 
-## Scripting Examples
+<details>
+<summary><strong>NTM Auto-Proceed (for multi-agent sessions)</strong></summary>
 
-Check if files are compatible (exit code only):
-
-```bash
-shape old.csv new.csv > /dev/null 2>&1
-echo $?  # 0 = compatible, 1 = incompatible, 2 = refused
-```
-
-Extract schema overlap from JSON:
+If you run multi-agent sessions and want periodic `proceed` nudges:
 
 ```bash
-shape old.csv new.csv --json | jq '.checks.schema_overlap'
+scripts/ntm_proceed_ctl.sh start --session codex53-high
 ```
 
-Get incompatibility reasons:
+This feature is **off by default**. When started with defaults, it:
+
+- Runs every `10m`
+- Sends only during overnight hours (`20:00` to `08:00`, local time)
+- Sends only if there are open or in-progress beads
+
+Check/stop it:
 
 ```bash
-shape old.csv new.csv --json | jq '.reasons'
+scripts/ntm_proceed_ctl.sh status
+scripts/ntm_proceed_ctl.sh stop
 ```
 
-Gate a pipeline (shape before rvl):
+Useful overrides:
 
 ```bash
-shape nov.csv dec.csv --key loan_id --json > shape.json \
-  && rvl nov.csv dec.csv --key loan_id --json > rvl.json
+# Enable during daytime too
+scripts/ntm_proceed_ctl.sh start --session codex53-high --mode always
+
+# Custom overnight window and interval
+scripts/ntm_proceed_ctl.sh start --session codex53-high --overnight-start 21 --overnight-end 7 --interval 15m
 ```
+
+</details>
 
 ---
 
