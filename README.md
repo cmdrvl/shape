@@ -322,6 +322,54 @@ Rules:
 
 ---
 
+## Agent / CI Integration
+
+Both `shape` and `rvl` are designed to be consumed by agents and pipelines, not just humans.
+
+### Self-describing contract
+
+An agent can learn how to invoke `shape` without reading docs:
+
+```bash
+$ shape --describe | jq '.exit_codes'
+{
+  "0": { "meaning": "COMPATIBLE", "domain": "positive" },
+  "1": { "meaning": "INCOMPATIBLE", "domain": "negative" },
+  "2": { "meaning": "REFUSAL / CLI error", "domain": "error" }
+}
+
+$ shape --describe | jq '.pipeline'
+{
+  "upstream": [],
+  "downstream": ["rvl", "compare", "verify", "assess"]
+}
+```
+
+### Agent workflow: shape → rvl
+
+```bash
+# 1. Structural gate
+shape old.csv new.csv --key id --json > shape.json
+if [ $? -ne 0 ]; then
+  # INCOMPATIBLE or REFUSAL — read .reasons or .refusal for why
+  cat shape.json | jq '.reasons // .refusal'
+  exit 1
+fi
+
+# 2. Numeric explanation (only if structurally compatible)
+rvl old.csv new.csv --key id --json > rvl.json
+
+# 3. Agent extracts the verdict
+outcome=$(jq -r '.outcome' rvl.json)
+if [ "$outcome" = "REAL_CHANGE" ]; then
+  jq '.contributors[] | "\(.row_id).\(.column): \(.delta)"' rvl.json
+fi
+```
+
+Everything an agent needs is in `--json` output: structured verdicts, exit codes for branching, and `--describe` for tool discovery.
+
+---
+
 ## Scripting Examples
 
 Check if files are compatible (exit code only):
