@@ -8,6 +8,8 @@
 
 **Structural comparability gate — know whether two CSV datasets can be compared before you waste time trying.**
 
+No AI. No inference. Pure deterministic checks.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.sh | bash
 ```
@@ -31,6 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.s
 | **Concrete reasons** | When incompatible, tells you exactly what broke and why |
 | **Machine-readable** | `--json` output for pipelines and CI gates |
 | **Pairs with rvl** | Run `shape` first to validate structure, then [`rvl`](https://github.com/cmdrvl/rvl) to explain numeric changes |
+| **Deterministic** | Same inputs always produce the same output — no models, no heuristics |
 | **Ambient witness ledger** | Every comparison is recorded for audit trails (opt-out with `--no-witness`) |
 
 ---
