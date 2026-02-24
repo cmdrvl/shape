@@ -72,7 +72,7 @@ shape <old.csv> <new.csv> [--key <column>] [--delimiter <delim>] [--json]
 
 ### Flags (v0.1 — core)
 
-- `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage)
+- `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage). v0.1 supports a single column only. Composite keys (e.g. `loan_id + property_id + begin_date`) are scoped via `--profile`, which can declare a multi-column `key:` list — deferred until profile support ships.
 - `--delimiter <delim>`: force CSV delimiter for both files (same accepted values as rvl)
 - `--json`: machine output (stable schema; no human formatting)
 - `--describe`: print the compiled-in `operator.json` to stdout and exit 0. Checked before file arguments are validated, so `shape --describe` works with no positional args.
@@ -264,7 +264,7 @@ For each candidate:
 1. Try RFC4180 escape mode (no escape character)
 2. If that fails, try backslash-escape mode
 3. Score: build histogram of field counts across sample records (max 200 records, max 64 KB)
-4. Score tuple: `(records_parsed, mode_count, mode_fields)` — compared lexicographically
+4. Score tuple: `(records_parsed, mode_count, mode_fields)` — compared lexicographically. `mode_count` is the number of records that share the most-common field count; `mode_fields` is that field count. Higher is better for both.
 
 Winner selection:
 - If one candidate has strictly the best score → use it
@@ -311,6 +311,8 @@ A column is numeric if every non-missing value parses as a finite number.
 | `E_INPUT_NOT_LOCKED` | Input file not present in any provided lockfile | Re-run with correct `--lock` or lock inputs first |
 | `E_INPUT_DRIFT` | Input file hash doesn't match the referenced lock member | Use the locked file; regenerate lock if expected |
 | `E_TOO_LARGE` | Input exceeds `--max-rows` or `--max-bytes` | Increase limit or split input |
+
+> **Note:** `E_AMBIGUOUS_PROFILE`, `E_INPUT_NOT_LOCKED`, `E_INPUT_DRIFT`, and `E_TOO_LARGE` are defined now for schema stability but cannot trigger until the corresponding flags (`--profile`, `--lock`, `--max-rows`/`--max-bytes`) ship.
 
 Refusal envelope (same as all spine tools):
 
@@ -678,6 +680,8 @@ Types:     12 numeric columns, 0 type shifts
 ```
 
 No `Key:` lines at all. Rows line shows only counts (no overlap detail).
+
+> **Terminology note:** When `--key` is provided, the Rows line includes key-set overlap counts (e.g. "3,214 overlap") alongside physical row counts. These are key-based counts (distinct key values present in both files), not row-level intersection — a distinction that matters when keys are non-unique.
 
 ### INCOMPATIBLE
 
