@@ -2,6 +2,8 @@ use std::ffi::OsStr;
 use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Root directory for test fixtures.
 pub fn fixtures_dir() -> PathBuf {
@@ -219,8 +221,32 @@ pub fn run_shape_with_fixtures(
 }
 
 fn execute_shape_command(command: &mut Command) -> ShapeInvocation {
+    if !has_command_env(command, "EPISTEMIC_WITNESS")
+        && std::env::var_os("EPISTEMIC_WITNESS").is_none()
+    {
+        command.env("EPISTEMIC_WITNESS", test_witness_path());
+    }
     let output = command.output().expect("failed to execute shape binary");
     shape_invocation_from_output(output)
+}
+
+fn has_command_env(command: &Command, key: &str) -> bool {
+    command
+        .get_envs()
+        .any(|(name, _)| name.to_string_lossy() == key)
+}
+
+fn test_witness_path() -> PathBuf {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time before unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!(
+        "shape-test-witness-{}-{seq}-{nanos}.jsonl",
+        std::process::id()
+    ))
 }
 
 fn shape_invocation_from_output(output: Output) -> ShapeInvocation {

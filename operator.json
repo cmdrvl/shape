@@ -26,6 +26,7 @@
     { "name": "key", "flag": "--key", "type": "string", "description": "Key column for alignment check" },
     { "name": "delimiter", "flag": "--delimiter", "type": "string", "description": "Force CSV delimiter for both files" },
     { "name": "no_witness", "flag": "--no-witness", "type": "flag", "description": "Suppress ambient witness ledger recording for this compare run" },
+    { "name": "capsule_dir", "flag": "--capsule-dir", "type": "file_path", "description": "Write deterministic repro capsule artifacts to this directory (default off)" },
     { "name": "profile", "flag": "--profile", "type": "file_path", "description": "Reserved in v0; parsed but check scoping is deferred" },
     { "name": "profile_id", "flag": "--profile-id", "type": "string", "description": "Reserved in v0; parsed and echoed in JSON profile_id" },
     { "name": "lock", "flag": "--lock", "type": "file_path", "repeatable": true, "description": "Reserved in v0; lock verification is deferred" },

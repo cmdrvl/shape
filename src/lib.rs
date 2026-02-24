@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod capsule;
 pub mod checks;
 pub mod cli;
 pub mod csv;

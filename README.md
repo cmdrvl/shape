@@ -254,6 +254,7 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
+| `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output) to this directory. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
 
 <details>
@@ -285,6 +286,35 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--json` | stdout | stdout | stdout |
 
 In `--json` mode, stderr is reserved for process-level failures only (CLI parse errors, panics).
+
+---
+
+## Repro Capsules
+
+Use `--capsule-dir` to emit deterministic replay artifacts for a run without changing standard output behavior.
+
+```bash
+shape old.csv new.csv --key loan_id --json --no-witness --capsule-dir capsules/run-001
+```
+
+Generated layout:
+
+```text
+capsules/run-001/
+  manifest.json
+  inputs/old.csv
+  inputs/new.csv
+  outputs/report.txt
+```
+
+Replay from the capsule directory:
+
+```bash
+cd capsules/run-001
+shape inputs/old.csv inputs/new.csv --key loan_id --json --no-witness
+```
+
+`manifest.json` also stores replay args and a shell command under `replay.argv` and `replay.shell`.
 
 ---
 

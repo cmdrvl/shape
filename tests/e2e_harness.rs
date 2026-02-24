@@ -58,7 +58,11 @@ fn assert_human_non_refusal(
     expected_outcome_fragment: &str,
 ) {
     assert_eq!(invocation.status, expected_status);
-    assert!(invocation.stderr.trim().is_empty());
+    assert!(
+        invocation.stderr.trim().is_empty(),
+        "unexpected stderr: {:?}",
+        invocation.stderr
+    );
     assert!(invocation.stdout.contains(expected_outcome_fragment));
 }
 
@@ -75,7 +79,11 @@ fn assert_json_outcome(
     context: &str,
 ) {
     assert_eq!(invocation.status, expected_status);
-    assert!(invocation.stderr.trim().is_empty());
+    assert!(
+        invocation.stderr.trim().is_empty(),
+        "unexpected stderr: {:?}",
+        invocation.stderr
+    );
     let value = parse_json_output(invocation, context);
     assert_eq!(value["outcome"], expected_outcome);
 }

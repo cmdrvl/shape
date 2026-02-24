@@ -31,6 +31,9 @@ pub struct Args {
     #[arg(long)]
     pub no_witness: bool,
 
+    #[arg(long = "capsule-dir", value_name = "path")]
+    pub capsule_dir: Option<PathBuf>,
+
     #[arg(long, value_name = "path", conflicts_with = "profile_id")]
     pub profile: Option<PathBuf>,
 
@@ -200,6 +203,8 @@ mod tests {
             "comma",
             "--json",
             "--no-witness",
+            "--capsule-dir",
+            "capsules/run-001",
             "--profile-id",
             "monthly-profile",
             "--lock",
@@ -225,6 +230,10 @@ mod tests {
         assert_eq!(args.delimiter.as_deref(), Some("comma"));
         assert!(args.json);
         assert!(args.no_witness);
+        assert_eq!(
+            args.capsule_dir.as_deref().and_then(|p| p.to_str()),
+            Some("capsules/run-001")
+        );
         assert_eq!(args.profile_id.as_deref(), Some("monthly-profile"));
         assert_eq!(args.lock.len(), 2);
         assert_eq!(args.max_rows, Some(100));

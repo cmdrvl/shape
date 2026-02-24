@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::capsule;
 use crate::checks::suite::{
     CheckSuite, Outcome, assemble_check_suite, build_reasons, determine_outcome,
 };
@@ -87,6 +88,15 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         Ok(result) => result,
         Err(refusal) => {
             let output = render_refusal_output(args, &old_file, &new_file, &refusal)?;
+            if let Some(capsule_dir) = args.capsule_dir.as_deref() {
+                capsule::write_run_capsule(
+                    args,
+                    Outcome::Refusal,
+                    &output,
+                    Some(&refusal.refusal),
+                    capsule_dir,
+                )?;
+            }
             return Ok(PipelineResult {
                 outcome: Outcome::Refusal,
                 output,
@@ -95,6 +105,9 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
     };
 
     let output = render_domain_output(args, &old_file, &new_file, &domain)?;
+    if let Some(capsule_dir) = args.capsule_dir.as_deref() {
+        capsule::write_run_capsule(args, domain.outcome, &output, None, capsule_dir)?;
+    }
     Ok(PipelineResult {
         outcome: domain.outcome,
         output,
@@ -631,6 +644,39 @@ mod tests {
         assert!(!result.output.contains("sep=;"));
     }
 
+    #[test]
+    fn run_with_capsule_dir_writes_manifest_and_artifacts() {
+        let old_file = TempCsv::new("run-capsule-old", "loan_id,balance\nA1,100\nA2,200\n");
+        let new_file = TempCsv::new("run-capsule-new", "loan_id,balance\nA1,110\nA2,210\n");
+        let capsule_dir = unique_path("run-capsule-dir");
+        let mut run_args = args(
+            old_file.path.clone(),
+            new_file.path.clone(),
+            Some("loan_id"),
+            true,
+        );
+        run_args.capsule_dir = Some(capsule_dir.clone());
+
+        let result = super::run(&run_args).expect("run with capsule dir should succeed");
+        assert_eq!(result.outcome, crate::checks::suite::Outcome::Compatible);
+        assert!(capsule_dir.join("manifest.json").is_file());
+        assert!(capsule_dir.join("inputs/old.csv").is_file());
+        assert!(capsule_dir.join("inputs/new.csv").is_file());
+        assert!(capsule_dir.join("outputs/report.txt").is_file());
+
+        let manifest_text =
+            fs::read_to_string(capsule_dir.join("manifest.json")).expect("read manifest");
+        let manifest: serde_json::Value =
+            serde_json::from_str(&manifest_text).expect("manifest json should be valid");
+        assert_eq!(manifest["schema_version"], "shape.capsule.v0");
+        assert_eq!(manifest["result"]["outcome"], "COMPATIBLE");
+        assert_eq!(manifest["replay"]["argv"][0], "shape");
+        assert_eq!(manifest["replay"]["argv"][1], "inputs/old.csv");
+        assert_eq!(manifest["replay"]["argv"][2], "inputs/new.csv");
+
+        let _ = fs::remove_dir_all(capsule_dir);
+    }
+
     fn args(old: PathBuf, new: PathBuf, key: Option<&str>, json: bool) -> Args {
         Args {
             old: Some(old),
@@ -639,6 +685,7 @@ mod tests {
             delimiter: None,
             json,
             no_witness: false,
+            capsule_dir: None,
             profile: None,
             profile_id: None,
             lock: vec![],

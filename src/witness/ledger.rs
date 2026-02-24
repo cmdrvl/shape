@@ -99,6 +99,7 @@ mod tests {
             delimiter: None,
             json: false,
             no_witness: false,
+            capsule_dir: None,
             profile: None,
             profile_id: None,
             lock: Vec::new(),

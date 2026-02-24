@@ -262,6 +262,7 @@ fn args_with_delimiter(
         delimiter: delimiter.map(ToOwned::to_owned),
         json,
         no_witness: false,
+        capsule_dir: None,
         profile: None,
         profile_id: None,
         lock: vec![],
