@@ -11,7 +11,7 @@
 No AI. No inference. Pure deterministic checks.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.sh | bash
+brew install cmdrvl/tap/shape
 ```
 
 </div>
@@ -195,7 +195,7 @@ Checks whether any common columns changed type between files.
 | Single deterministic verdict | ✅ | ❌ | ❌ | ❌ |
 | Machine-readable output | ✅ `--json` | ❌ | ⚠️ Text | ✅ |
 | Audit trail (witness ledger) | ✅ Built-in | ❌ | ❌ | ❌ |
-| Setup time | ✅ One curl command | N/A | ⚠️ pip install | ⚠️ pip install + script |
+| Setup time | ✅ `brew install` | N/A | ⚠️ pip install | ⚠️ pip install + script |
 
 **When to use shape:**
 - Before running `rvl` — validate structure first, then explain numeric changes
@@ -211,21 +211,21 @@ Checks whether any common columns changed type between files.
 
 ## Installation
 
-### Quick Install (Recommended)
+### Homebrew (Recommended)
+
+```bash
+brew install cmdrvl/tap/shape
+```
+
+### Shell Script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.sh | bash
 ```
 
-### Package Managers
-
-```bash
-# macOS / Linux (Homebrew)
-brew install cmdrvl/tap/shape
-```
+### Windows (PowerShell)
 
 ```powershell
-# Windows (PowerShell)
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/cmdrvl/shape/main/scripts/install.ps1'))
 ```
 
