@@ -26,3 +26,7 @@ target
 
 # ntm runtime state
 .ntm/
+
+# Local UBS run artifacts
+.ubs-gate-summary.json
+.ubs-baseline.json

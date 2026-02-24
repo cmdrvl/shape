@@ -1,0 +1,8 @@
+SHAPE ERROR (E_EMPTY)
+
+Compared: tests/fixtures/basic_old.csv -> tests/fixtures/empty.csv
+Dialect(old): delimiter=, quote=" escape=none
+Dialect(new): delimiter=, quote=" escape=none
+
+One or both files empty (no data rows after header)
+Next: provide non-empty datasets.

@@ -41,6 +41,12 @@ If I tell you to do something, even if it goes against what follows below, YOU M
   git push origin main:master
   ```
 
+**Why this matters:** install URLs historically referenced `master`. If `master` falls behind `main`, users can install stale code.
+
+**If you see `master` referenced anywhere:**
+1. Update it to `main`
+2. Ensure `master` is synchronized: `git push origin main:master`
+
 ---
 
 ## Toolchain: Rust & Cargo
@@ -51,6 +57,11 @@ We only use **Cargo** in this project, NEVER any other package manager.
 - **Dependency versions:** Explicit versions for stability
 - **Configuration:** Cargo.toml only
 - **Unsafe code:** Forbidden (`#![forbid(unsafe_code)]`)
+
+### Key Dependencies
+
+- Prefer small, explicit dependencies with pinned versions.
+- Document any critical dependency decisions in the PR/commit message.
 
 ### Release Profile
 
@@ -186,12 +197,22 @@ git commit -m "fix: description of fixes
 - Include any breaking changes"
 ```
 
-### 3. Push and Trigger Release
+### 3. Bump Version (if needed)
+
+The version in `Cargo.toml` determines the release tag. Use semver:
+
+- **Patch**: Bug fixes, no new features
+- **Minor**: New features, backward compatible
+- **Major**: Breaking changes
+
+### 4. Push and Trigger Release
 
 ```bash
 git push origin main
 git push origin main:master  # Keep master in sync
 ```
+
+If release workflows exist, follow their instructions for tags and artifacts. Validate releases with `gh release` once configured.
 
 ---
 
@@ -246,16 +267,59 @@ If you aren't 100% sure how to use a third-party library, **SEARCH ONLINE** to f
 
 ---
 
+## MCP Agent Mail — Multi-Agent Coordination
+
+Agent Mail is the coordination layer for multi-agent sessions in this repo: identities, inbox/outbox, thread history, and advisory file reservations.
+
+### Session Baseline
+
+1. Ensure project and reuse your existing identity:
+   - `ensure_project(project_key=<abs-path>)`
+   - `whois(project_key, agent_name)` or `register_agent(...)` only if identity does not exist
+2. Reserve only exact files you will edit:
+   - Allowed: `src/orchestrator.rs`, `tests/e2e_matrix.rs`
+   - Not allowed: `src/**`, `/**`, whole directories
+3. Send a short start message and finish message for each bead.
+4. Check inbox at moderate cadence (roughly every 2-5 minutes), not continuously.
+
+### Stability Rules
+
+- Do not run retry loops for `register_agent`, `create_agent_identity`, or `macro_start_session`.
+- If a call fails with a transient DB/SQLite lock error, back off for **90 seconds** before retrying.
+- Continue bead work while waiting for retry windows; do not block all progress on mail retries.
+
+### Communication Rules
+
+- If a message has `ack_required=true`, call `acknowledge_message(...)` promptly.
+- Keep bead updates short and explicit: start message, finish message, blocker message (when blocked).
+- Reuse a stable thread/topic per bead when possible for searchable history.
+
+### Reservation Rules
+
+- Reserve only specific files you are actively editing.
+- Never reserve entire directories or broad patterns.
+- If reservation conflicts appear, pick another unblocked bead or a non-overlapping file.
+
+### Common Pitfalls
+
+- `"from_agent not registered"`: ensure `register_agent` was done in the correct project.
+- `"FILE_RESERVATION_CONFLICT"`: narrow paths further, wait for expiry, or switch to non-overlapping work.
+- Spamming inbox polls: use moderate cadence (2-5 minutes), not a tight loop.
+
+---
+
 ## Beads (br) — Dependency-Aware Issue Tracking
 
-Beads provides a lightweight, dependency-aware issue database and CLI (`br` - beads_rust) for selecting "ready work," setting priorities, and tracking status.
+Beads provides dependency-aware task tracking. It complements Agent Mail:
+- Beads = task graph/status/priorities/dependencies
+- Agent Mail = coordination/audit/reservations
 
 **Important:** `br` is non-invasive—it NEVER runs git commands automatically. You must manually commit changes after `br sync --flush-only`.
 
 ### Essential Commands
 
 ```bash
-br ready              # Show issues ready to work (no blockers)
+br ready              # Show unblocked ready work
 br list --status=open # All open issues
 br show <id>          # Full issue details with dependencies
 br create --title="..." --type=task --priority=2
@@ -263,6 +327,85 @@ br update <id> --status=in_progress
 br close <id> --reason "Completed"
 br sync --flush-only  # Export to JSONL (NO git operations)
 ```
+
+### Conventions
+
+- Beads is source of truth for task state/dependencies; Agent Mail is source of truth for coordination trail.
+- Include bead ID in message subjects, e.g. `[bd-25bu] Start: AGENTS parity`.
+- Use the bead ID in reservation reasons for traceability.
+
+### Workflow
+
+1. Start with `br ready` and pick one unblocked bead.
+2. Mark it `in_progress` before coding.
+3. Reserve exact files and send start message.
+4. Implement + validate.
+5. Close bead, send completion summary, release reservations.
+
+### Idle Rule
+
+If you are blocked or idle:
+1. Run `br ready`
+2. Pick an unblocked bead and continue
+3. If none are ready, report blockers and state the next fallback task
+
+---
+
+## bv — Graph-Aware Triage (Optional)
+
+Use `bv` robot mode when dependency-aware prioritization is unclear:
+
+```bash
+bv --robot-triage  # Full triage view with recommendations
+bv --robot-next    # Single top recommendation
+```
+
+**Important:** use only `--robot-*` commands in automation. Bare `bv` opens an interactive TUI.
+
+---
+
+## UBS — Ultimate Bug Scanner
+
+Run UBS on changed files before commit:
+
+```bash
+ubs <changed-files>
+```
+
+Exit `0` means no findings; non-zero means fix findings and re-run.
+
+Useful patterns:
+
+```bash
+ubs $(git diff --name-only --cached)   # staged files
+ubs --only=rust,toml src/              # language-filtered scan
+ubs --ci --fail-on-warning .           # CI-style strict run
+```
+
+---
+
+## ast-grep vs ripgrep
+
+Use `ast-grep` when structure matters:
+- codemods/refactors
+- syntax-aware policy checks
+- safe pattern rewrites
+
+Use `rg` when text search is enough:
+- finding literals/config keys/TODOs
+- fast repository reconnaissance
+
+Rule of thumb:
+- structural match or rewrite -> `ast-grep`
+- textual search -> `rg`
+
+---
+
+## Morph Warp Grep — Exploratory Search
+
+Use `mcp__morph-mcp__warp_grep` for exploratory questions like "how does X work?" when you do not yet know where to look **and the tool is configured in this environment**.
+
+If Warp Grep is unavailable, use `rg` for broad discovery and `ast-grep` for structure-aware follow-up.
 
 ---
 

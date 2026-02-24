@@ -1,0 +1,6 @@
+SHAPE ERROR (E_DIALECT)
+
+Compared: tests/fixtures/ambiguous_old.csv -> tests/fixtures/basic_new.csv
+
+Delimiter ambiguous or undetectable
+Next: shape tests/fixtures/ambiguous_old.csv tests/fixtures/basic_new.csv --delimiter comma --json

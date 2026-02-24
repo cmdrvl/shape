@@ -1,0 +1,4 @@
+loan_id,balance,status
+A1,100.00,current
+A2,200.50,late
+A3,300.00,current

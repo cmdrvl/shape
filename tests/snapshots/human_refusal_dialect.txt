@@ -1,0 +1,7 @@
+SHAPE ERROR (E_HEADERS)
+
+Compared: <OLD> -> <NEW>
+Dialect(old): delimiter=, quote=" escape=none
+
+Missing header or duplicate headers
+Next: fix headers or re-export.

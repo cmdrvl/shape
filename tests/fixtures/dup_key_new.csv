@@ -1,0 +1,4 @@
+loan_id,balance,status
+D1,55.00,current
+D2,70.00,current
+D3,80.00,new

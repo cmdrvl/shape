@@ -1,0 +1,3 @@
+loan_id,balance,retired_field
+A1,100.00,legacy-a
+A2,200.00,legacy-b

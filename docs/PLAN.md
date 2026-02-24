@@ -68,6 +68,7 @@ Code should be structurally similar to rvl where applicable. shape should feel l
 
 ```bash
 shape <old.csv> <new.csv> [--key <column>] [--delimiter <delim>] [--json]
+shape witness <query|last|count> [OPTIONS]
 ```
 
 ### Flags (v0.1 — core)
@@ -75,6 +76,7 @@ shape <old.csv> <new.csv> [--key <column>] [--delimiter <delim>] [--json]
 - `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage). v0.1 supports a single column only. Composite keys (e.g. `loan_id + property_id + begin_date`) are scoped via `--profile`, which can declare a multi-column `key:` list — deferred until profile support ships.
 - `--delimiter <delim>`: force CSV delimiter for both files (same accepted values as rvl)
 - `--json`: machine output (stable schema; no human formatting)
+- `--no-witness`: suppress witness ledger recording for this run
 - `--describe`: print the compiled-in `operator.json` to stdout and exit 0. Checked before file arguments are validated, so `shape --describe` works with no positional args.
 - `--version`: print `shape <semver>` to stdout and exit 0
 
@@ -94,10 +96,40 @@ These are deferred until the respective spine tools exist, but the CLI shape is 
 - `1`: INCOMPATIBLE
 - `2`: REFUSAL / CLI error
 
+For `shape witness <...>` subcommands:
+- `0`: success
+- `1`: no matching records / empty ledger
+- `2`: CLI error / witness refusal
+
 ### Streams
 
 - Human mode: COMPATIBLE / INCOMPATIBLE go to stdout; REFUSAL goes to stderr.
 - `--json` mode: emit exactly one JSON object on stdout for all domain outcomes; stderr is reserved for process-level failures only.
+
+### Witness ledger (epistemic spine parity)
+
+`shape` follows the same ambient witness protocol as `rvl`:
+
+- Default behavior: every non-subcommand comparison run appends exactly one `witness.v0` record.
+- Opt-out: `--no-witness`.
+- Ledger path resolution:
+  1. `EPISTEMIC_WITNESS` env var, if set
+  2. `~/.epistemic/witness.jsonl` otherwise
+- Witness failures never change the domain exit code. If append/query fails, print a warning/refusal message to stderr and preserve domain result semantics.
+
+Witness query subcommands (same shape as rvl):
+
+```bash
+shape witness query [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
+  [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] \
+  [--limit <n>] [--json]
+
+shape witness last [--json]
+shape witness count [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
+  [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] [--json]
+```
+
+`shape witness` is read/query-only. It does not mutate ledger state.
 
 ---
 
@@ -1273,6 +1305,8 @@ Provide basic test fixtures in `tests/fixtures/`:
 - `--key <column>` flag
 - `--delimiter <delim>` flag (same parsing as rvl)
 - `--json` flag
+- ambient witness recording (default on) + `--no-witness`
+- `shape witness <query|last|count>` subcommands
 - `--version` flag (prints `shape <semver>`)
 - COMPATIBLE / INCOMPATIBLE outcome with four checks
 - Exit codes 0/1/2

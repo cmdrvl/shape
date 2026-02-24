@@ -48,6 +48,30 @@ jobs:
       - name: Run tests
         run: cargo test
 
+  ubs:
+    name: UBS (critical-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install UBS (pinned)
+        run: |
+          UBS_URL="https://raw.githubusercontent.com/Dicklesworthstone/ultimate_bug_scanner/af5a03b13c305ef2d9b484fa49421f2a18877355/ubs"
+          UBS_SHA256="3d0f2e8d59362a96253bee83d8e0bfc79ac8a71729442cfca0338bc53782810f"
+          curl -fsSL "$UBS_URL" -o /tmp/ubs
+          echo "$UBS_SHA256  /tmp/ubs" | sha256sum -c -
+          install -m 0755 /tmp/ubs /usr/local/bin/ubs
+          ubs --version
+      - name: Run UBS critical-only gate (Rust scoped)
+        run: ./scripts/ubs_gate.sh
+      - name: Upload UBS summary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubs-gate-summary
+          path: .ubs-gate-summary.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -75,7 +99,7 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [fmt, clippy, test, build]
+    needs: [fmt, clippy, test, ubs, build]
     if: always()
     steps:
       - name: Check all jobs succeeded
@@ -90,6 +114,10 @@ jobs:
           fi
           if [[ "${{ needs.test.result }}" != "success" ]]; then
             echo "Test job failed"
+            exit 1
+          fi
+          if [[ "${{ needs.ubs.result }}" != "success" ]]; then
+            echo "UBS job failed"
             exit 1
           fi
           if [[ "${{ needs.build.result }}" != "success" && "${{ needs.build.result }}" != "skipped" ]]; then

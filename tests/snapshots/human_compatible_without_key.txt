@@ -1,0 +1,11 @@
+SHAPE
+
+COMPATIBLE
+
+Compared: <OLD> -> <NEW>
+Dialect(old): delimiter=, quote=" escape=none
+Dialect(new): delimiter=, quote=" escape=none
+
+Schema:    3 common / 3 total (100% overlap)
+Rows:      3 old / 3 new
+Types:     1 numeric columns, 0 type shifts

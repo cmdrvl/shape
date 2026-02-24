@@ -1,0 +1,13 @@
+SHAPE
+
+COMPATIBLE
+
+Compared: <OLD> -> <NEW>
+Key: loan_id (unique in both files)
+Dialect(old): delimiter=, quote=" escape=none
+Dialect(new): delimiter=, quote=" escape=none
+
+Schema:    3 common / 3 total (100% overlap)
+Key:       loan_id — unique in both, coverage=0.67
+Rows:      3 old / 3 new (1 removed, 1 added, 2 overlap)
+Types:     1 numeric columns, 0 type shifts
