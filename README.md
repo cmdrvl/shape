@@ -6,9 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub release](https://img.shields.io/github/v/release/cmdrvl/shape)](https://github.com/cmdrvl/shape/releases)
 
-**Structural comparability gate — know whether two CSV datasets can be compared before you waste time trying.**
-
-No AI. No inference. Pure deterministic checks.
+**Can these two files even be compared? Find out before you waste two hours in Excel.**
 
 ```bash
 brew install cmdrvl/tap/shape
@@ -18,23 +16,16 @@ brew install cmdrvl/tap/shape
 
 ---
 
-## TL;DR
+Two CSV exports land on your desk — November and December. Before you open a single cell, ask the question that saves you the next two hours: *can these files even be compared?* Do the columns match? Is the key unique in both? Did the vendor silently change a column from numeric to text?
 
-**The Problem**: Before you can compare two CSV exports, you need to know if comparison is even meaningful. Do the columns match? Is the key unique? Did the schema drift? Finding out mid-analysis wastes time and produces misleading results.
+**shape answers in one command: COMPATIBLE or INCOMPATIBLE.** Four independent structural checks — schema overlap, key viability, row granularity, and type consistency — all at once, with concrete reasons when something breaks. Run shape before `rvl` and you'll never waste time analyzing files that can't be meaningfully compared.
 
-**The Solution**: One structural gate. `shape` checks schema overlap, key viability, row granularity, and type consistency — then gives a deterministic verdict before you run any analysis.
+### What makes this different
 
-### Why Use shape?
-
-| Feature | What It Does |
-|---------|--------------|
-| **Four structural checks** | Schema overlap, key viability, row granularity, type consistency — all at once |
-| **Three clear outcomes** | COMPATIBLE, INCOMPATIBLE, or REFUSAL — never ambiguous |
-| **Concrete reasons** | When incompatible, tells you exactly what broke and why |
-| **Machine-readable** | `--json` output for pipelines and CI gates |
-| **Pairs with rvl** | Run `shape` first to validate structure, then [`rvl`](https://github.com/cmdrvl/rvl) to explain numeric changes |
-| **Deterministic** | Same inputs always produce the same output — no models, no heuristics |
-| **Ambient witness ledger** | Every comparison is recorded for audit trails (opt-out with `--no-witness`) |
+- **One verdict, four checks** — schema overlap, key uniqueness, row counts, and type consistency all evaluated in a single invocation. All must pass for COMPATIBLE.
+- **Concrete reasons** — INCOMPATIBLE isn't a dead end. The `reasons` array tells you exactly what broke: "balance changed from numeric to non-numeric" or "key loan_id has duplicates in new file."
+- **Pairs with rvl** — `shape` validates structure, [`rvl`](https://github.com/cmdrvl/rvl) explains numeric changes. Gate your pipeline: `shape old.csv new.csv --key id && rvl old.csv new.csv --key id`.
+- **Repro capsules** — `--capsule-dir` writes the inputs, output, and a replay script so any result can be reproduced exactly.
 
 ---
 
