@@ -5,6 +5,7 @@
   "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
+  "agent_guide": "https://github.com/cmdrvl/.github/blob/main/profile/AGENT_PROMPT.md",
 
   "invocation": {
     "binary": "shape",
