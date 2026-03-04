@@ -12,6 +12,7 @@ use crate::csv::input::{ParsedInput, parse_input_file_with_context};
 use crate::normalize::headers::ascii_trim;
 use crate::output::human::{self, RefusalRenderContext};
 use crate::output::json::{self, JsonRenderContext};
+use crate::profile::{self, ResolvedProfile};
 use crate::refusal::payload::RefusalPayload;
 use crate::scan::{ScanResult, post_scan_empty_guard, pre_scan_empty_guard, scan_file};
 
@@ -20,6 +21,8 @@ use crate::scan::{ScanResult, post_scan_empty_guard, pre_scan_empty_guard, scan_
 pub struct PipelineResult {
     pub outcome: Outcome,
     pub output: String,
+    pub resolved_profile_id: Option<String>,
+    pub resolved_profile_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,6 +63,48 @@ pub fn enforce_post_scan_empty_guards(
     Ok(())
 }
 
+/// Resolve the profile from CLI args, if provided.
+///
+/// Returns `Err(RefusalPayload)` for ambiguous selectors (both --profile and
+/// --profile-id) or resolution failures.
+fn resolve_profile(args: &Args) -> Result<Option<ResolvedProfile>, RefusalPayload> {
+    if args.profile.is_some() && args.profile_id.is_some() {
+        return Err(RefusalPayload::ambiguous_profile(
+            args.profile
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            args.profile_id.clone().unwrap_or_default(),
+        ));
+    }
+
+    if let Some(path) = args.profile.as_deref() {
+        let resolved = profile::load_profile_from_path(path).map_err(|err| {
+            RefusalPayload::from_code(crate::refusal::codes::RefusalCode::EIo).with_detail(
+                serde_json::json!({
+                    "file": path.to_string_lossy(),
+                    "error": err.to_string(),
+                }),
+            )
+        })?;
+        return Ok(Some(resolved));
+    }
+
+    if let Some(selector) = args.profile_id.as_deref() {
+        let resolved = profile::resolve_profile_id(selector).map_err(|err| {
+            RefusalPayload::from_code(crate::refusal::codes::RefusalCode::EIo).with_detail(
+                serde_json::json!({
+                    "profile_id": selector,
+                    "error": err.to_string(),
+                }),
+            )
+        })?;
+        return Ok(Some(resolved));
+    }
+
+    Ok(None)
+}
+
 /// Execute the full shape pipeline.
 pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
     let old_path = args.old.as_deref().ok_or_else(|| {
@@ -84,10 +129,40 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
     let old_file = old_path.to_string_lossy().into_owned();
     let new_file = new_path.to_string_lossy().into_owned();
 
+    // Resolve profile early — before any file I/O.
+    let resolved_profile = match resolve_profile(args) {
+        Ok(profile) => profile,
+        Err(refusal) => {
+            let pipeline_refusal = PipelineRefusal {
+                refusal,
+                dialect_old: None,
+                dialect_new: None,
+            };
+            let output =
+                render_refusal_output(args, &old_file, &new_file, &pipeline_refusal, None)?;
+            return Ok(PipelineResult {
+                outcome: Outcome::Refusal,
+                output,
+                resolved_profile_id: None,
+                resolved_profile_sha256: None,
+            });
+        }
+    };
+    let resolved_profile_id = resolved_profile.as_ref().and_then(|p| p.profile_id.clone());
+    let resolved_profile_sha256 = resolved_profile
+        .as_ref()
+        .and_then(|p| p.profile_sha256.clone());
+
     let domain = match execute_pipeline(args, old_path, new_path, forced_delimiter) {
         Ok(result) => result,
         Err(refusal) => {
-            let output = render_refusal_output(args, &old_file, &new_file, &refusal)?;
+            let output = render_refusal_output(
+                args,
+                &old_file,
+                &new_file,
+                &refusal,
+                resolved_profile.as_ref(),
+            )?;
             if let Some(capsule_dir) = args.capsule_dir.as_deref() {
                 capsule::write_run_capsule(
                     args,
@@ -100,17 +175,27 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
             return Ok(PipelineResult {
                 outcome: Outcome::Refusal,
                 output,
+                resolved_profile_id,
+                resolved_profile_sha256,
             });
         }
     };
 
-    let output = render_domain_output(args, &old_file, &new_file, &domain)?;
+    let output = render_domain_output(
+        args,
+        &old_file,
+        &new_file,
+        &domain,
+        resolved_profile.as_ref(),
+    )?;
     if let Some(capsule_dir) = args.capsule_dir.as_deref() {
         capsule::write_run_capsule(args, domain.outcome, &output, None, capsule_dir)?;
     }
     Ok(PipelineResult {
         outcome: domain.outcome,
         output,
+        resolved_profile_id,
+        resolved_profile_sha256,
     })
 }
 
@@ -230,6 +315,7 @@ fn render_domain_output(
     old_file: &str,
     new_file: &str,
     domain: &PipelineDomainResult,
+    resolved_profile: Option<&ResolvedProfile>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     if args.json {
         return Ok(json::render_shape_json(JsonRenderContext {
@@ -241,8 +327,8 @@ fn render_domain_output(
             checks: Some(&domain.suite),
             reasons: Some(&domain.reasons),
             refusal: None,
-            profile_id: args.profile_id.as_deref(),
-            profile_sha256: None,
+            profile_id: resolved_profile.and_then(|p| p.profile_id.as_deref()),
+            profile_sha256: resolved_profile.and_then(|p| p.profile_sha256.as_deref()),
             input_verification: None,
             explicit: args.explicit,
         })?);
@@ -281,6 +367,7 @@ fn render_refusal_output(
     old_file: &str,
     new_file: &str,
     refusal: &PipelineRefusal,
+    resolved_profile: Option<&ResolvedProfile>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     if args.json {
         return Ok(json::render_shape_json(JsonRenderContext {
@@ -292,8 +379,8 @@ fn render_refusal_output(
             checks: None,
             reasons: None,
             refusal: Some(&refusal.refusal),
-            profile_id: args.profile_id.as_deref(),
-            profile_sha256: None,
+            profile_id: resolved_profile.and_then(|p| p.profile_id.as_deref()),
+            profile_sha256: resolved_profile.and_then(|p| p.profile_sha256.as_deref()),
             input_verification: None,
             explicit: args.explicit,
         })?);

@@ -192,18 +192,6 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
 fn emit_reserved_flag_warnings(args: &cli::args::Args) {
     use std::io::Write;
     let mut stderr = std::io::stderr();
-    if args.profile.is_some() {
-        let _ = writeln!(
-            stderr,
-            "shape: note: --profile accepted but column scoping is deferred in v0"
-        );
-    }
-    if args.profile_id.is_some() {
-        let _ = writeln!(
-            stderr,
-            "shape: note: --profile-id accepted but profile resolution is deferred in v0"
-        );
-    }
     if !args.lock.is_empty() {
         let _ = writeln!(
             stderr,

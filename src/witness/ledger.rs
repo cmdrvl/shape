@@ -113,6 +113,8 @@ mod tests {
         let result = PipelineResult {
             outcome: Outcome::Compatible,
             output: "ok".to_owned(),
+            resolved_profile_id: None,
+            resolved_profile_sha256: None,
         };
         let mut record =
             WitnessRecord::from_run(&args, &result, b"old", b"new", "old.csv", "new.csv", prev);

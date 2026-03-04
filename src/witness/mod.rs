@@ -121,6 +121,8 @@ mod tests {
         PipelineResult {
             outcome,
             output: "shape output".to_owned(),
+            resolved_profile_id: None,
+            resolved_profile_sha256: None,
         }
     }
 

@@ -87,6 +87,8 @@ impl WitnessRecord {
             "capsule_dir": args.capsule_dir.as_ref().map(|path| path.to_string_lossy().into_owned()),
             "profile": profile,
             "profile_id": args.profile_id.clone(),
+            "resolved_profile_id": result.resolved_profile_id.clone(),
+            "resolved_profile_sha256": result.resolved_profile_sha256.clone(),
             "lock": lock,
             "max_rows": args.max_rows,
             "max_bytes": args.max_bytes,
@@ -188,6 +190,8 @@ mod tests {
         PipelineResult {
             outcome,
             output: "shape output".to_owned(),
+            resolved_profile_id: Some("profile.v0".to_owned()),
+            resolved_profile_sha256: Some("sha256:abc".to_owned()),
         }
     }
 

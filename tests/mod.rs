@@ -273,11 +273,20 @@ fn cli_json_refusal_omits_dialects_when_old_parse_fails() {
 
 #[test]
 fn cli_json_echoes_profile_id_for_compatible_and_refusal_outcomes() {
-    let compatible = run_shape_with_fixtures(
-        BASIC_OLD,
-        BASIC_NEW,
-        &["--json", "--profile-id", "monthly-profile"],
-    );
+    // Create a temp profile YAML with profile_id and profile_sha256.
+    let profile_dir =
+        std::env::temp_dir().join(format!("shape-profile-echo-test-{}", std::process::id()));
+    fs::create_dir_all(&profile_dir).unwrap();
+    let profile_path = profile_dir.join("monthly.yaml");
+    fs::write(
+        &profile_path,
+        "profile_id: monthly-profile\nprofile_sha256: sha256:deadbeef\ninclude_columns: [loan_id, balance]\n",
+    )
+    .unwrap();
+    let profile_str = profile_path.to_string_lossy().to_string();
+
+    let compatible =
+        run_shape_with_fixtures(BASIC_OLD, BASIC_NEW, &["--json", "--profile", &profile_str]);
     assert_eq!(compatible.status, 0);
     assert_json_mode_stderr_empty(
         &compatible,
@@ -286,18 +295,20 @@ fn cli_json_echoes_profile_id_for_compatible_and_refusal_outcomes() {
     let compatible_payload = parse_json_stdout(&compatible, "compatible json should parse");
     assert_eq!(compatible_payload["outcome"], "COMPATIBLE");
     assert_eq!(compatible_payload["profile_id"], "monthly-profile");
-    assert!(compatible_payload["profile_sha256"].is_null());
-
-    let refusal = run_shape_with_fixtures(
-        EMPTY,
-        BASIC_NEW,
-        &["--json", "--profile-id", "monthly-profile"],
+    assert_eq!(
+        compatible_payload["profile_sha256"], "sha256:deadbeef",
+        "resolved sha256 should appear in JSON output"
     );
+
+    let refusal = run_shape_with_fixtures(EMPTY, BASIC_NEW, &["--json", "--profile", &profile_str]);
     assert_eq!(refusal.status, 2);
     assert_json_mode_stderr_empty(&refusal, "json refusal output should not write stderr");
     let refusal_payload = parse_json_stdout(&refusal, "refusal json should parse");
     assert_eq!(refusal_payload["outcome"], "REFUSAL");
     assert_eq!(refusal_payload["profile_id"], "monthly-profile");
+    assert_eq!(refusal_payload["profile_sha256"], "sha256:deadbeef");
+
+    fs::remove_dir_all(profile_dir).ok();
 }
 
 #[test]
