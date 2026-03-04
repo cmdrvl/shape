@@ -1,0 +1,7 @@
+profile_id: loan-tape.v0
+profile_sha256: sha256:test-loan-tape
+include_columns:
+  - loan_id
+  - balance
+key:
+  - loan_id

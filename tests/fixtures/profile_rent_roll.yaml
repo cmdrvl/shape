@@ -1,0 +1,9 @@
+profile_id: rent-roll.v0
+profile_sha256: sha256:test-rent-roll
+include_columns:
+  - unit_id
+  - building
+  - rent
+key:
+  - unit_id
+  - building

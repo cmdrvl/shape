@@ -1,0 +1,5 @@
+include_columns:
+  - loan_id
+  - balance
+key:
+  - loan_id

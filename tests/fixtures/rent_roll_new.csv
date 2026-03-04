@@ -1,0 +1,4 @@
+unit_id,building,rent,status
+101,A,1250.00,active
+102,A,1400.00,active
+301,C,1000.00,new
