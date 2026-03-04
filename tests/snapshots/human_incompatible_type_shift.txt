@@ -11,7 +11,6 @@ Schema:    3 common / 3 total (100% overlap)
 Key:       loan_id — unique in both, coverage=1.0
 Rows:      2 old / 2 new (0 removed, 0 added, 2 overlap)
 Types:     0 numeric columns, 1 type shift
-           balance: numeric -> non-numeric
 
 Reasons:
   1. Type shift: balance changed from numeric to non-numeric

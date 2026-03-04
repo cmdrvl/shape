@@ -244,6 +244,7 @@ fn render_domain_output(
             profile_id: args.profile_id.as_deref(),
             profile_sha256: None,
             input_verification: None,
+            explicit: args.explicit,
         })?);
     }
 
@@ -254,6 +255,7 @@ fn render_domain_output(
             domain.old_input.dialect,
             domain.new_input.dialect,
             &domain.suite,
+            args.explicit,
         ),
         Outcome::Incompatible => human::render_incompatible(
             old_file,
@@ -262,6 +264,7 @@ fn render_domain_output(
             domain.new_input.dialect,
             &domain.suite,
             &domain.reasons,
+            args.explicit,
         ),
         Outcome::Refusal => {
             return Err(std::io::Error::other(
@@ -292,6 +295,7 @@ fn render_refusal_output(
             profile_id: args.profile_id.as_deref(),
             profile_sha256: None,
             input_verification: None,
+            explicit: args.explicit,
         })?);
     }
 
@@ -691,6 +695,8 @@ mod tests {
             lock: vec![],
             max_rows: None,
             max_bytes: None,
+            explicit: false,
+            schema: false,
             describe: false,
             command: None,
         }

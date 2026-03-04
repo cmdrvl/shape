@@ -101,6 +101,7 @@ pub fn render_compatible(
     old_dialect: Dialect,
     new_dialect: Dialect,
     suite: &CheckSuite,
+    explicit: bool,
 ) -> String {
     render_structural_outcome(
         Outcome::Compatible,
@@ -110,6 +111,7 @@ pub fn render_compatible(
         new_dialect,
         suite,
         &[],
+        explicit,
     )
 }
 
@@ -120,6 +122,7 @@ pub fn render_incompatible(
     new_dialect: Dialect,
     suite: &CheckSuite,
     reasons: &[String],
+    explicit: bool,
 ) -> String {
     render_structural_outcome(
         Outcome::Incompatible,
@@ -129,9 +132,11 @@ pub fn render_incompatible(
         new_dialect,
         suite,
         reasons,
+        explicit,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_structural_outcome(
     outcome: Outcome,
     old_path: &str,
@@ -140,6 +145,7 @@ fn render_structural_outcome(
     new_dialect: Dialect,
     suite: &CheckSuite,
     reasons: &[String],
+    explicit: bool,
 ) -> String {
     let mut out = String::new();
     out.push_str("SHAPE\n\n");
@@ -160,7 +166,7 @@ fn render_structural_outcome(
     ));
     out.push('\n');
 
-    out.push_str(&render_schema_block(suite));
+    out.push_str(&render_schema_block(suite, explicit));
     if let Some(key) = suite.key_viability.as_ref() {
         out.push_str(&format!("Key:       {}\n", render_key_detail_line(key)));
     }
@@ -170,8 +176,10 @@ fn render_structural_outcome(
         render_types_summary_line(suite)
     ));
 
-    for shift in &suite.type_consistency.type_shifts {
-        out.push_str(&format!("           {}\n", render_type_shift_line(shift)));
+    if explicit {
+        for shift in &suite.type_consistency.type_shifts {
+            out.push_str(&format!("           {}\n", render_type_shift_line(shift)));
+        }
     }
 
     if outcome == Outcome::Incompatible && !reasons.is_empty() {
@@ -184,7 +192,7 @@ fn render_structural_outcome(
     out
 }
 
-fn render_schema_block(suite: &CheckSuite) -> String {
+fn render_schema_block(suite: &CheckSuite, explicit: bool) -> String {
     let common = suite.schema_overlap.columns_common.len() as u64;
     let old_only = suite.schema_overlap.columns_old_only.len() as u64;
     let new_only = suite.schema_overlap.columns_new_only.len() as u64;
@@ -198,17 +206,19 @@ fn render_schema_block(suite: &CheckSuite) -> String {
         numbers::format_ratio_as_percent(suite.schema_overlap.overlap_ratio)
     ));
 
-    if !suite.schema_overlap.columns_old_only.is_empty() {
-        out.push_str(&format!(
-            "           old_only: [{}]\n",
-            join_human_identifiers(&suite.schema_overlap.columns_old_only)
-        ));
-    }
-    if !suite.schema_overlap.columns_new_only.is_empty() {
-        out.push_str(&format!(
-            "           new_only: [{}]\n",
-            join_human_identifiers(&suite.schema_overlap.columns_new_only)
-        ));
+    if explicit {
+        if !suite.schema_overlap.columns_old_only.is_empty() {
+            out.push_str(&format!(
+                "           old_only: [{}]\n",
+                join_human_identifiers(&suite.schema_overlap.columns_old_only)
+            ));
+        }
+        if !suite.schema_overlap.columns_new_only.is_empty() {
+            out.push_str(&format!(
+                "           new_only: [{}]\n",
+                join_human_identifiers(&suite.schema_overlap.columns_new_only)
+            ));
+        }
     }
 
     out
@@ -474,6 +484,7 @@ mod tests {
             Dialect::default(),
             Dialect::default(),
             &suite,
+            true,
         );
 
         assert!(rendered.contains("SHAPE\n\nCOMPATIBLE"));
@@ -492,6 +503,7 @@ mod tests {
             Dialect::default(),
             Dialect::default(),
             &base_suite(),
+            true,
         );
 
         let expected = concat!(
@@ -524,6 +536,7 @@ mod tests {
             Dialect::default(),
             Dialect::default(),
             &suite,
+            true,
         );
 
         let expected = concat!(
@@ -558,6 +571,7 @@ mod tests {
             Dialect::default(),
             &suite,
             &reasons,
+            true,
         );
 
         assert!(rendered.contains("INCOMPATIBLE"));
@@ -592,6 +606,7 @@ mod tests {
             Dialect::default(),
             &suite,
             &["Key viability: loan_id not found in old file".to_string()],
+            true,
         );
 
         assert!(rendered.contains("Key: loan_id (NOT FOUND in old and new files)"));
@@ -625,6 +640,7 @@ mod tests {
                 "Key viability: loan_id has 42 duplicate values in old file".to_string(),
                 "Key viability: loan_id has 3 empty values in new file".to_string(),
             ],
+            true,
         );
 
         assert!(
@@ -667,6 +683,7 @@ mod tests {
             Dialect::default(),
             &suite,
             &reasons,
+            true,
         );
 
         let expected = concat!(

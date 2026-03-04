@@ -177,6 +177,8 @@ mod tests {
             lock: vec![PathBuf::from("shape.lock")],
             max_rows: Some(100),
             max_bytes: Some(2048),
+            explicit: false,
+            schema: false,
             describe: false,
             command: None,
         }

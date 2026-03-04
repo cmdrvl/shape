@@ -1,7 +1,7 @@
 {
   "schema_version": "operator.v0",
   "name": "shape",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
@@ -33,6 +33,8 @@
     { "name": "lock", "flag": "--lock", "type": "file_path", "repeatable": true, "description": "Reserved in v0; lock verification is deferred" },
     { "name": "max_rows", "flag": "--max-rows", "type": "integer", "description": "Reserved in v0; row-limit refusal is deferred" },
     { "name": "max_bytes", "flag": "--max-bytes", "type": "integer", "description": "Reserved in v0; byte-limit refusal is deferred" },
+    { "name": "explicit", "flag": "--explicit", "type": "flag", "description": "Show column names and other identifying metadata in output (default: redacted for zero-retention safety)" },
+    { "name": "schema", "flag": "--schema", "type": "flag", "description": "Print JSON Schema for shape.v0 output format and exit 0" },
     { "name": "describe", "flag": "--describe", "type": "flag", "description": "Print compiled operator.json and exit 0 without positional args" }
   ],
 

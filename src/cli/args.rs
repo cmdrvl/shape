@@ -13,10 +13,10 @@ use clap::{ArgAction, Parser, Subcommand};
     subcommand_negates_reqs = true
 )]
 pub struct Args {
-    #[arg(value_name = "old.csv", required_unless_present = "describe")]
+    #[arg(value_name = "old.csv", required_unless_present_any = ["describe", "schema"])]
     pub old: Option<PathBuf>,
 
-    #[arg(value_name = "new.csv", required_unless_present = "describe")]
+    #[arg(value_name = "new.csv", required_unless_present_any = ["describe", "schema"])]
     pub new: Option<PathBuf>,
 
     #[arg(long, value_name = "column")]
@@ -48,6 +48,14 @@ pub struct Args {
 
     #[arg(long = "max-bytes", value_name = "n")]
     pub max_bytes: Option<u64>,
+
+    /// Show column names and other identifying metadata in output (default: redacted for zero-retention safety).
+    #[arg(long)]
+    pub explicit: bool,
+
+    /// Print JSON Schema for shape.v0 output format and exit 0.
+    #[arg(long)]
+    pub schema: bool,
 
     #[arg(long)]
     pub describe: bool,
@@ -149,6 +157,16 @@ mod tests {
         let args = Args::parse_from(["shape", "--describe"]).expect("expected parse success");
 
         assert!(args.describe);
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+        assert!(args.command.is_none());
+    }
+
+    #[test]
+    fn parse_schema_without_positionals() {
+        let args = Args::parse_from(["shape", "--schema"]).expect("expected parse success");
+
+        assert!(args.schema);
         assert!(args.old.is_none());
         assert!(args.new.is_none());
         assert!(args.command.is_none());

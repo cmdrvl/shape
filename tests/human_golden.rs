@@ -137,8 +137,7 @@ fn human_incompatible_matches_golden_snapshot() {
             "Dialect(new): delimiter=, quote=\" escape=none\n\n",
             "Schema:    3 common / 3 total (100% overlap)\n",
             "Rows:      2 old / 2 new\n",
-            "Types:     0 numeric columns, 1 type shift\n",
-            "           balance: numeric -> non-numeric\n\n",
+            "Types:     0 numeric columns, 1 type shift\n\n",
             "Reasons:\n",
             "  1. Type shift: balance changed from numeric to non-numeric\n"
         ),

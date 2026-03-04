@@ -20,6 +20,7 @@ pub struct JsonRenderContext<'a> {
     pub profile_id: Option<&'a str>,
     pub profile_sha256: Option<&'a str>,
     pub input_verification: Option<Value>,
+    pub explicit: bool,
 }
 
 impl<'a> JsonRenderContext<'a> {
@@ -36,6 +37,7 @@ impl<'a> JsonRenderContext<'a> {
             profile_id: None,
             profile_sha256: None,
             input_verification: None,
+            explicit: false,
         }
     }
 }
@@ -126,7 +128,8 @@ struct JsonTypeShift {
 }
 
 pub fn render_shape_json(context: JsonRenderContext<'_>) -> Result<String, serde_json::Error> {
-    let checks = context.checks.map(json_checks);
+    let explicit = context.explicit;
+    let checks = context.checks.map(|suite| json_checks(suite, explicit));
     let reasons = match context.outcome {
         Outcome::Refusal => None,
         _ => Some(context.reasons.unwrap_or(&[]).to_vec()),
@@ -191,23 +194,31 @@ fn column_type_label(classification: ColumnClassification) -> &'static str {
     }
 }
 
-fn json_checks(suite: &CheckSuite) -> JsonChecks {
+fn json_checks(suite: &CheckSuite, explicit: bool) -> JsonChecks {
     JsonChecks {
         schema_overlap: JsonSchemaOverlap {
             status: check_status(suite.schema_overlap.status),
             columns_common: suite.schema_overlap.columns_common.len() as u64,
-            columns_old_only: suite
-                .schema_overlap
-                .columns_old_only
-                .iter()
-                .map(|column| encode_identifier(column))
-                .collect(),
-            columns_new_only: suite
-                .schema_overlap
-                .columns_new_only
-                .iter()
-                .map(|column| encode_identifier(column))
-                .collect(),
+            columns_old_only: if explicit {
+                suite
+                    .schema_overlap
+                    .columns_old_only
+                    .iter()
+                    .map(|column| encode_identifier(column))
+                    .collect()
+            } else {
+                vec![]
+            },
+            columns_new_only: if explicit {
+                suite
+                    .schema_overlap
+                    .columns_new_only
+                    .iter()
+                    .map(|column| encode_identifier(column))
+                    .collect()
+            } else {
+                vec![]
+            },
             overlap_ratio: suite.schema_overlap.overlap_ratio,
         },
         key_viability: suite.key_viability.as_ref().map(|key| JsonKeyViability {
@@ -235,7 +246,11 @@ fn json_checks(suite: &CheckSuite) -> JsonChecks {
                 .type_shifts
                 .iter()
                 .map(|shift| JsonTypeShift {
-                    column: encode_identifier(&shift.column),
+                    column: if explicit {
+                        encode_identifier(&shift.column)
+                    } else {
+                        "[REDACTED]".to_string()
+                    },
                     old_type: column_type_label(shift.old_type),
                     new_type: column_type_label(shift.new_type),
                 })
@@ -307,6 +322,7 @@ mod tests {
             profile_id: None,
             profile_sha256: None,
             input_verification: None,
+            explicit: true,
         })
         .expect("render json");
 
@@ -341,6 +357,7 @@ mod tests {
             profile_id: None,
             profile_sha256: None,
             input_verification: None,
+            explicit: true,
         })
         .expect("render json");
 
@@ -376,6 +393,7 @@ mod tests {
             profile_id: None,
             profile_sha256: None,
             input_verification: None,
+            explicit: true,
         })
         .expect("render json");
 
@@ -401,6 +419,7 @@ mod tests {
             profile_id: None,
             profile_sha256: None,
             input_verification: None,
+            explicit: true,
         })
         .expect("render json");
 
@@ -454,6 +473,7 @@ mod tests {
             profile_id: None,
             profile_sha256: None,
             input_verification: None,
+            explicit: true,
         })
         .expect("render json");
 

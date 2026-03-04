@@ -105,6 +105,8 @@ mod tests {
             lock: Vec::new(),
             max_rows: None,
             max_bytes: None,
+            explicit: false,
+            schema: false,
             describe: false,
             command: None,
         };

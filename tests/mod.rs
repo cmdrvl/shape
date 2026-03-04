@@ -22,11 +22,13 @@ use shape::refusal::payload::RefusalPayload;
 use shape::scan::KeyScan;
 
 fn assert_json_mode_stderr_empty(result: &ShapeInvocation, context: &str) {
-    assert!(
-        result.stderr.trim().is_empty(),
-        "{context}: {}",
-        result.stderr
-    );
+    let stderr = result
+        .stderr
+        .lines()
+        .filter(|line| !line.starts_with("shape: note:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(stderr.trim().is_empty(), "{context}: {}", result.stderr);
 }
 
 fn parse_json_stdout(result: &ShapeInvocation, context: &str) -> Value {
@@ -629,6 +631,7 @@ fn human_compatible_without_key_omits_key_lines_and_overlap_metrics() {
         Dialect::default(),
         Dialect::default(),
         &suite,
+        true,
     );
 
     assert!(rendered.contains("SHAPE\n\nCOMPATIBLE"));
@@ -667,6 +670,7 @@ fn human_incompatible_missing_key_keeps_rows_line_without_overlap_detail() {
         Dialect::default(),
         &suite,
         &reasons,
+        true,
     );
 
     assert!(rendered.contains("INCOMPATIBLE"));

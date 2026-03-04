@@ -83,7 +83,7 @@ fn run_handoff_emits_incompatible_in_human_and_json_modes() {
     assert_eq!(value["checks"]["type_consistency"]["status"], "fail");
     assert_eq!(
         value["checks"]["type_consistency"]["type_shifts"][0]["column"],
-        "u8:balance"
+        "[REDACTED]"
     );
     assert_eq!(
         value["reasons"][0],
@@ -268,6 +268,8 @@ fn args_with_delimiter(
         lock: vec![],
         max_rows: None,
         max_bytes: None,
+        explicit: false,
+        schema: false,
         describe: false,
         command: None,
     }

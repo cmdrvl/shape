@@ -195,7 +195,7 @@ fn json_snapshot_incompatible_type_shift() {
                 "status": "fail",
                 "numeric_columns": 0,
                 "type_shifts": [{
-                    "column": "u8:balance",
+                    "column": "[REDACTED]",
                     "old_type": "numeric",
                     "new_type": "non-numeric"
                 }]

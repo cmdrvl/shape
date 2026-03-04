@@ -1,6 +1,6 @@
 [package]
 name = "shape"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["CMD+RVL <engineering@cmdrvl.com>"]
 description = "Structural comparability gate — can these two CSV datasets be compared at all?"
