@@ -56,23 +56,25 @@ pub fn determine_outcome(suite: &CheckSuite) -> Outcome {
 pub fn assemble_check_suite(
     old_headers: &[Vec<u8>],
     new_headers: &[Vec<u8>],
-    key_column: Option<Vec<u8>>,
-    key_found_old: bool,
-    key_found_new: bool,
+    key_columns: Vec<Vec<u8>>,
+    keys_found_old: Vec<bool>,
+    keys_found_new: Vec<bool>,
     old_scan: &ScanResult,
     new_scan: &ScanResult,
     include_set: Option<&HashSet<Vec<u8>>>,
 ) -> CheckSuite {
     let schema_overlap = evaluate_schema_overlap(old_headers, new_headers, include_set);
-    let key_viability = key_column.map(|key| {
-        evaluate_key_viability(
-            key,
-            key_found_old,
-            key_found_new,
+    let key_viability = if key_columns.is_empty() {
+        None
+    } else {
+        Some(evaluate_key_viability(
+            key_columns,
+            keys_found_old,
+            keys_found_new,
             old_scan.key_scan.as_ref(),
             new_scan.key_scan.as_ref(),
-        )
-    });
+        ))
+    };
 
     let key_metrics = match (old_scan.key_scan.as_ref(), new_scan.key_scan.as_ref()) {
         (Some(old), Some(new)) => Some(compute_key_overlap_metrics(old, new)),
@@ -262,8 +264,11 @@ mod tests {
             key_viability: Some(KeyViabilityResult {
                 status: CheckStatus::Fail,
                 key_column: b"loan_id".to_vec(),
+                key_columns: vec![b"loan_id".to_vec()],
                 found_old: true,
                 found_new: false,
+                found_components_old: vec![true],
+                found_components_new: vec![false],
                 unique_old: Some(true),
                 unique_new: None,
                 duplicate_values_old: Some(0),
@@ -289,8 +294,11 @@ mod tests {
             key_viability: Some(KeyViabilityResult {
                 status: CheckStatus::Fail,
                 key_column: b"loan_id".to_vec(),
+                key_columns: vec![b"loan_id".to_vec()],
                 found_old: true,
                 found_new: true,
+                found_components_old: vec![true],
+                found_components_new: vec![true],
                 unique_old: Some(false),
                 unique_new: Some(true),
                 duplicate_values_old: Some(2),
@@ -319,8 +327,11 @@ mod tests {
             key_viability: Some(KeyViabilityResult {
                 status: CheckStatus::Fail,
                 key_column: b"loan_id".to_vec(),
+                key_columns: vec![b"loan_id".to_vec()],
                 found_old: true,
                 found_new: true,
+                found_components_old: vec![true],
+                found_components_new: vec![true],
                 unique_old: Some(false),
                 unique_new: Some(false),
                 duplicate_values_old: Some(2),
@@ -380,8 +391,11 @@ mod tests {
             key_viability: Some(KeyViabilityResult {
                 status: CheckStatus::Fail,
                 key_column: b"loan_id".to_vec(),
+                key_columns: vec![b"loan_id".to_vec()],
                 found_old: false,
                 found_new: true,
+                found_components_old: vec![false],
+                found_components_new: vec![true],
                 unique_old: None,
                 unique_new: Some(true),
                 duplicate_values_old: None,
@@ -445,9 +459,9 @@ mod tests {
         let suite = assemble_check_suite(
             &old_headers,
             &new_headers,
-            Some(b"loan_id".to_vec()),
-            true,
-            true,
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
             &old_scan,
             &new_scan,
             None,
@@ -479,9 +493,9 @@ mod tests {
         let suite = assemble_check_suite(
             &old_headers,
             &new_headers,
-            None,
-            false,
-            false,
+            vec![],
+            vec![],
+            vec![],
             &old_scan,
             &new_scan,
             None,
@@ -515,9 +529,9 @@ mod tests {
         let suite = assemble_check_suite(
             &old_headers,
             &new_headers,
-            Some(b"loan_id".to_vec()),
-            true,
-            false,
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![false],
             &old_scan,
             &new_scan,
             None,
@@ -547,8 +561,11 @@ mod tests {
         KeyViabilityResult {
             status: CheckStatus::Pass,
             key_column: b"loan_id".to_vec(),
+            key_columns: vec![b"loan_id".to_vec()],
             found_old: true,
             found_new: true,
+            found_components_old: vec![true],
+            found_components_new: vec![true],
             unique_old: Some(true),
             unique_new: Some(true),
             duplicate_values_old: Some(0),

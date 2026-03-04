@@ -85,13 +85,18 @@ impl NumericClassifier {
 }
 
 /// Scan one file's rows exactly once, collecting row/key/type metrics.
+///
+/// `key_column_indices` is empty when no key is requested. For a single-column
+/// key it contains one index; for composite keys it holds all component indices.
+/// Composite uniqueness is checked by concatenating component values with a
+/// 0xFF separator and inserting into the KeyScan HashSet.
 pub fn scan_file(
     file: &Path,
     raw_bytes: &[u8],
     data_offset: usize,
     dialect: &Dialect,
     common_column_indices: &[usize],
-    key_column_index: Option<usize>,
+    key_column_indices: &[usize],
 ) -> Result<ScanResult, RefusalPayload> {
     pre_scan_empty_guard(file, raw_bytes, data_offset)?;
 
@@ -107,7 +112,11 @@ pub fn scan_file(
     let line_offset = line_offset_for_prefix(raw_bytes, data_offset);
 
     let mut row_count = 0u64;
-    let mut key_scan = key_column_index.map(|_| KeyScan::new());
+    let mut key_scan = if key_column_indices.is_empty() {
+        None
+    } else {
+        Some(KeyScan::new())
+    };
     let mut classifiers = vec![NumericClassifier::new(); common_column_indices.len()];
 
     stream_byte_records_with_line_offset(data, &config, &file_label, line_offset, |record| {
@@ -117,12 +126,15 @@ pub fn scan_file(
 
         row_count += 1;
 
-        if let (Some(key_idx), Some(ks)) = (key_column_index, &mut key_scan) {
-            let key = ascii_trim(record.get(key_idx).unwrap_or(&[]));
-            if is_missing(key) {
+        if let Some(ks) = &mut key_scan {
+            let composite = build_composite_key(record, key_column_indices);
+            if composite.iter().all(|v| is_missing(v)) {
                 ks.empty_count += 1;
-            } else if !ks.values.insert(key.to_vec()) {
-                ks.duplicate_count += 1;
+            } else {
+                let joined = join_composite_key(&composite);
+                if !ks.values.insert(joined) {
+                    ks.duplicate_count += 1;
+                }
             }
         }
 
@@ -144,6 +156,26 @@ pub fn scan_file(
             .map(NumericClassifier::classify)
             .collect(),
     })
+}
+
+/// Extract trimmed values for each key column index from a record.
+fn build_composite_key(record: &ByteRecord, indices: &[usize]) -> Vec<Vec<u8>> {
+    indices
+        .iter()
+        .map(|&idx| ascii_trim(record.get(idx).unwrap_or(&[])).to_vec())
+        .collect()
+}
+
+/// Join composite key values with 0xFF separator for uniqueness checking.
+fn join_composite_key(parts: &[Vec<u8>]) -> Vec<u8> {
+    let mut joined = Vec::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            joined.push(0xFF);
+        }
+        joined.extend_from_slice(part);
+    }
+    joined
 }
 
 /// Returns true when every field in the record is blank after ASCII-trim.
@@ -485,7 +517,7 @@ mod tests {
             "loan_id,amount,flag\n".len(),
             &Dialect::default(),
             &[1, 2],
-            Some(0),
+            &[0],
         )
         .expect("scan should succeed");
 
@@ -513,7 +545,7 @@ mod tests {
             "loan_id,optional\n".len(),
             &Dialect::default(),
             &[1],
-            Some(0),
+            &[0],
         )
         .expect("scan should succeed");
 
@@ -535,7 +567,7 @@ mod tests {
             header_only.len(),
             &Dialect::default(),
             &[1],
-            Some(0),
+            &[0],
         )
         .expect_err("header-only should refuse");
         assert_eq!(refusal.code.as_str(), "E_EMPTY");
@@ -547,7 +579,7 @@ mod tests {
             "loan_id,amount\n".len(),
             &Dialect::default(),
             &[1],
-            Some(0),
+            &[0],
         )
         .expect_err("all-blank should refuse");
         assert_eq!(refusal.code.as_str(), "E_EMPTY");

@@ -96,11 +96,17 @@ struct JsonSchemaOverlap {
 struct JsonKeyViability {
     status: &'static str,
     key_column: String,
+    #[serde(skip_serializing_if = "is_single_key")]
+    key_columns: Vec<String>,
     found_old: bool,
     found_new: bool,
     unique_old: Option<bool>,
     unique_new: Option<bool>,
     coverage: Option<f64>,
+}
+
+fn is_single_key(columns: &[String]) -> bool {
+    columns.len() <= 1
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -221,14 +227,27 @@ fn json_checks(suite: &CheckSuite, explicit: bool) -> JsonChecks {
             },
             overlap_ratio: suite.schema_overlap.overlap_ratio,
         },
-        key_viability: suite.key_viability.as_ref().map(|key| JsonKeyViability {
-            status: check_status(key.status),
-            key_column: encode_identifier(&key.key_column),
-            found_old: key.found_old,
-            found_new: key.found_new,
-            unique_old: key.unique_old,
-            unique_new: key.unique_new,
-            coverage: key.coverage,
+        key_viability: suite.key_viability.as_ref().map(|key| {
+            let key_columns: Vec<String> = key
+                .key_columns
+                .iter()
+                .map(|col| encode_identifier(col))
+                .collect();
+            let key_column = if key_columns.len() > 1 {
+                key_columns.join(" + ")
+            } else {
+                encode_identifier(&key.key_column)
+            };
+            JsonKeyViability {
+                status: check_status(key.status),
+                key_column,
+                key_columns,
+                found_old: key.found_old,
+                found_new: key.found_new,
+                unique_old: key.unique_old,
+                unique_new: key.unique_new,
+                coverage: key.coverage,
+            }
         }),
         row_granularity: JsonRowGranularity {
             status: check_status(suite.row_granularity.status),
@@ -299,8 +318,11 @@ mod tests {
         let checks = sample_suite(Some(KeyViabilityResult {
             status: CheckStatus::Pass,
             key_column: b"loan_id".to_vec(),
+            key_columns: vec![b"loan_id".to_vec()],
             found_old: true,
             found_new: true,
+            found_components_old: vec![true],
+            found_components_new: vec![true],
             unique_old: Some(true),
             unique_new: Some(true),
             duplicate_values_old: Some(0),

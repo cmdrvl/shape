@@ -529,9 +529,9 @@ fn check_suite_assembly_with_key_sets_optional_fields() {
     let old_scan = key_scan(&[b"K1", b"K2"], 0, 0);
     let new_scan = key_scan(&[b"K1", b"K3"], 0, 0);
     let key = evaluate_key_viability(
-        b"loan_id".to_vec(),
-        true,
-        true,
+        vec![b"loan_id".to_vec()],
+        vec![true],
+        vec![true],
         Some(&old_scan),
         Some(&new_scan),
     );
@@ -594,7 +594,13 @@ fn check_suite_assembly_key_missing_is_incompatible_with_expected_nulls() {
         None,
     );
     let old_scan = key_scan(&[b"K1", b"K2"], 0, 0);
-    let key = evaluate_key_viability(b"loan_id".to_vec(), true, false, Some(&old_scan), None);
+    let key = evaluate_key_viability(
+        vec![b"loan_id".to_vec()],
+        vec![true],
+        vec![false],
+        Some(&old_scan),
+        None,
+    );
     let rows = evaluate_row_granularity(2, 2, None);
     let types = TypeConsistencyResult {
         status: CheckStatus::Pass,
@@ -662,9 +668,9 @@ fn human_incompatible_missing_key_keeps_rows_line_without_overlap_detail() {
             None,
         ),
         key_viability: Some(evaluate_key_viability(
-            b"loan_id".to_vec(),
-            true,
-            false,
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![false],
             Some(&key_scan(&[b"K1", b"K2"], 0, 0)),
             None,
         )),

@@ -154,12 +154,20 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         .and_then(|p| p.profile_sha256.clone());
 
     let include_set = resolved_profile.as_ref().map(|p| p.include_set());
+    let profile_key_columns: Vec<Vec<u8>> = resolved_profile
+        .as_ref()
+        .map(|p| p.key_columns.clone())
+        .unwrap_or_default();
+    if !profile_key_columns.is_empty() && args.key.is_some() {
+        eprintln!("shape: profile key overrides --key flag");
+    }
     let domain = match execute_pipeline(
         args,
         old_path,
         new_path,
         forced_delimiter,
         include_set.as_ref(),
+        &profile_key_columns,
     ) {
         Ok(result) => result,
         Err(refusal) => {
@@ -212,6 +220,7 @@ fn execute_pipeline(
     new_path: &Path,
     forced_delimiter: Option<u8>,
     include_set: Option<&HashSet<Vec<u8>>>,
+    profile_key_columns: &[Vec<u8>],
 ) -> Result<PipelineDomainResult, PipelineRefusal> {
     let old_file = old_path.to_string_lossy().into_owned();
     let new_file = new_path.to_string_lossy().into_owned();
@@ -249,18 +258,32 @@ fn execute_pipeline(
     let old_common_indices = common_column_indices(&common_columns, &old_header_indices);
     let new_common_indices = common_column_indices(&common_columns, &new_header_indices);
 
-    let key_column = args
-        .key
-        .as_ref()
-        .map(|column| ascii_trim(column.as_bytes()).to_vec());
-    let old_key_index = key_column
-        .as_ref()
-        .and_then(|key| old_header_indices.get(key.as_slice()).copied());
-    let new_key_index = key_column
-        .as_ref()
-        .and_then(|key| new_header_indices.get(key.as_slice()).copied());
-    let key_found_old = old_key_index.is_some();
-    let key_found_new = new_key_index.is_some();
+    // Resolve key columns: profile keys take precedence over --key flag.
+    let key_columns: Vec<Vec<u8>> = if !profile_key_columns.is_empty() {
+        profile_key_columns.to_vec()
+    } else {
+        args.key
+            .as_ref()
+            .map(|column| vec![ascii_trim(column.as_bytes()).to_vec()])
+            .unwrap_or_default()
+    };
+
+    let old_key_indices: Vec<usize> = key_columns
+        .iter()
+        .filter_map(|key| old_header_indices.get(key.as_slice()).copied())
+        .collect();
+    let new_key_indices: Vec<usize> = key_columns
+        .iter()
+        .filter_map(|key| new_header_indices.get(key.as_slice()).copied())
+        .collect();
+    let keys_found_old: Vec<bool> = key_columns
+        .iter()
+        .map(|key| old_header_indices.contains_key(key.as_slice()))
+        .collect();
+    let keys_found_new: Vec<bool> = key_columns
+        .iter()
+        .map(|key| new_header_indices.contains_key(key.as_slice()))
+        .collect();
 
     let old_scan = scan_file(
         old_path,
@@ -268,7 +291,7 @@ fn execute_pipeline(
         old_input.data_offset,
         &old_input.dialect,
         &old_common_indices,
-        old_key_index,
+        &old_key_indices,
     )
     .map_err(|refusal| PipelineRefusal {
         refusal,
@@ -282,7 +305,7 @@ fn execute_pipeline(
         new_input.data_offset,
         &new_input.dialect,
         &new_common_indices,
-        new_key_index,
+        &new_key_indices,
     )
     .map_err(|refusal| PipelineRefusal {
         refusal,
@@ -301,9 +324,9 @@ fn execute_pipeline(
     let suite = assemble_check_suite(
         &old_input.headers,
         &new_input.headers,
-        key_column,
-        key_found_old,
-        key_found_new,
+        key_columns,
+        keys_found_old,
+        keys_found_new,
         &old_scan,
         &new_scan,
         include_set,
@@ -502,6 +525,7 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
+            &[],
         )
         .expect_err("missing old file should fail fast");
 
@@ -526,6 +550,7 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
+            &[],
         )
         .expect_err("duplicate headers in new file should refuse");
 
@@ -555,6 +580,7 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
+            &[],
         )
         .expect("pipeline should succeed");
 
@@ -581,6 +607,7 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
+            &[],
         )
         .expect("pipeline should succeed");
 

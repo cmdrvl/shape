@@ -224,8 +224,20 @@ fn render_schema_block(suite: &CheckSuite, explicit: bool) -> String {
     out
 }
 
+fn composite_key_label(key: &KeyViabilityResult) -> String {
+    if key.key_columns.len() > 1 {
+        key.key_columns
+            .iter()
+            .map(|col| String::from_utf8_lossy(col).into_owned())
+            .collect::<Vec<_>>()
+            .join(" + ")
+    } else {
+        String::from_utf8_lossy(&key.key_column).into_owned()
+    }
+}
+
 fn render_key_header_line(key: &KeyViabilityResult) -> String {
-    let column = String::from_utf8_lossy(&key.key_column);
+    let column = composite_key_label(key);
     if key.status == CheckStatus::Pass {
         return format!("{column} (unique in both files)");
     }
@@ -249,7 +261,7 @@ fn render_key_header_line(key: &KeyViabilityResult) -> String {
 }
 
 fn render_key_detail_line(key: &KeyViabilityResult) -> String {
-    let column = String::from_utf8_lossy(&key.key_column);
+    let column = composite_key_label(key);
     if !key.found_old && !key.found_new {
         return format!("{column} — not found in old and new files");
     }
@@ -588,8 +600,11 @@ mod tests {
         suite.key_viability = Some(KeyViabilityResult {
             status: CheckStatus::Fail,
             key_column: b"loan_id".to_vec(),
+            key_columns: vec![b"loan_id".to_vec()],
             found_old: false,
             found_new: false,
+            found_components_old: vec![false],
+            found_components_new: vec![false],
             unique_old: None,
             unique_new: None,
             duplicate_values_old: None,
@@ -619,8 +634,11 @@ mod tests {
         suite.key_viability = Some(KeyViabilityResult {
             status: CheckStatus::Fail,
             key_column: b"loan_id".to_vec(),
+            key_columns: vec![b"loan_id".to_vec()],
             found_old: true,
             found_new: true,
+            found_components_old: vec![true],
+            found_components_new: vec![true],
             unique_old: Some(false),
             unique_new: Some(false),
             duplicate_values_old: Some(42),
@@ -796,8 +814,11 @@ mod tests {
             key_viability: Some(KeyViabilityResult {
                 status: CheckStatus::Pass,
                 key_column: b"loan_id".to_vec(),
+                key_columns: vec![b"loan_id".to_vec()],
                 found_old: true,
                 found_new: true,
+                found_components_old: vec![true],
+                found_components_new: vec![true],
                 unique_old: Some(true),
                 unique_new: Some(true),
                 duplicate_values_old: Some(0),

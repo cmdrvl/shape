@@ -4,9 +4,15 @@ use crate::scan::KeyScan;
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyViabilityResult {
     pub status: CheckStatus,
+    /// Single key column label (first key column for composite keys).
     pub key_column: Vec<u8>,
+    /// All key columns. For single keys this has one element.
+    pub key_columns: Vec<Vec<u8>>,
     pub found_old: bool,
     pub found_new: bool,
+    /// Per-component found status for composite keys.
+    pub found_components_old: Vec<bool>,
+    pub found_components_new: Vec<bool>,
     pub unique_old: Option<bool>,
     pub unique_new: Option<bool>,
     pub duplicate_values_old: Option<u64>,
@@ -17,12 +23,15 @@ pub struct KeyViabilityResult {
 }
 
 pub fn evaluate_key_viability(
-    key_column: Vec<u8>,
-    found_old: bool,
-    found_new: bool,
+    key_columns: Vec<Vec<u8>>,
+    found_components_old: Vec<bool>,
+    found_components_new: Vec<bool>,
     old_scan: Option<&KeyScan>,
     new_scan: Option<&KeyScan>,
 ) -> KeyViabilityResult {
+    let found_old = found_components_old.iter().all(|&f| f);
+    let found_new = found_components_new.iter().all(|&f| f);
+
     let unique_old = old_scan.map(is_unique_and_non_empty);
     let unique_new = new_scan.map(is_unique_and_non_empty);
     let duplicate_values_old = old_scan.map(|scan| scan.duplicate_count);
@@ -40,11 +49,15 @@ pub fn evaluate_key_viability(
         CheckStatus::Fail
     };
 
+    let key_column = key_columns.first().cloned().unwrap_or_default();
     KeyViabilityResult {
         status,
         key_column,
+        key_columns,
         found_old,
         found_new,
+        found_components_old,
+        found_components_new,
         unique_old,
         unique_new,
         duplicate_values_old,
@@ -90,10 +103,18 @@ mod tests {
         let old = key_scan(&[b"A1", b"A2", b"A3"], 0, 0);
         let new = key_scan(&[b"A1", b"A2", b"A4"], 0, 0);
 
-        let result =
-            evaluate_key_viability(b"loan_id".to_vec(), true, true, Some(&old), Some(&new));
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&old),
+            Some(&new),
+        );
 
         assert_eq!(result.status, CheckStatus::Pass);
+        assert_eq!(result.key_column, b"loan_id".to_vec());
+        assert!(result.found_old);
+        assert!(result.found_new);
         assert_eq!(result.unique_old, Some(true));
         assert_eq!(result.unique_new, Some(true));
         assert_eq!(result.duplicate_values_old, Some(0));
@@ -107,9 +128,17 @@ mod tests {
     fn fails_when_key_missing_in_new_file() {
         let old = key_scan(&[b"A1", b"A2"], 0, 0);
 
-        let result = evaluate_key_viability(b"loan_id".to_vec(), true, false, Some(&old), None);
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![false],
+            Some(&old),
+            None,
+        );
 
         assert_eq!(result.status, CheckStatus::Fail);
+        assert!(result.found_old);
+        assert!(!result.found_new);
         assert_eq!(result.unique_old, Some(true));
         assert_eq!(result.unique_new, None);
         assert_eq!(result.duplicate_values_old, Some(0));
@@ -124,8 +153,13 @@ mod tests {
         let old = key_scan(&[b"A1", b"A2"], 1, 0);
         let new = key_scan(&[b"A1", b"A2"], 0, 2);
 
-        let result =
-            evaluate_key_viability(b"loan_id".to_vec(), true, true, Some(&old), Some(&new));
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&old),
+            Some(&new),
+        );
 
         assert_eq!(result.status, CheckStatus::Fail);
         assert_eq!(result.unique_old, Some(false));
@@ -142,9 +176,32 @@ mod tests {
         let old = key_scan(&[], 0, 0);
         let new = key_scan(&[], 0, 0);
 
-        let result =
-            evaluate_key_viability(b"loan_id".to_vec(), true, true, Some(&old), Some(&new));
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&old),
+            Some(&new),
+        );
 
         assert_eq!(result.coverage, Some(0.0));
+    }
+
+    #[test]
+    fn composite_key_found_requires_all_components() {
+        let scan = key_scan(&[b"A1"], 0, 0);
+
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec(), b"unit".to_vec()],
+            vec![true, true],
+            vec![true, false],
+            Some(&scan),
+            None,
+        );
+
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert!(result.found_old);
+        assert!(!result.found_new);
+        assert_eq!(result.found_components_new, vec![true, false]);
     }
 }
