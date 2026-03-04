@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::checks::key_viability::KeyViabilityResult;
 use crate::checks::key_viability::evaluate_key_viability;
 use crate::checks::row_granularity::RowGranularityResult;
@@ -50,6 +52,7 @@ pub fn determine_outcome(suite: &CheckSuite) -> Outcome {
     suite.determine_outcome()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn assemble_check_suite(
     old_headers: &[Vec<u8>],
     new_headers: &[Vec<u8>],
@@ -58,8 +61,9 @@ pub fn assemble_check_suite(
     key_found_new: bool,
     old_scan: &ScanResult,
     new_scan: &ScanResult,
+    include_set: Option<&HashSet<Vec<u8>>>,
 ) -> CheckSuite {
-    let schema_overlap = evaluate_schema_overlap(old_headers, new_headers);
+    let schema_overlap = evaluate_schema_overlap(old_headers, new_headers, include_set);
     let key_viability = key_column.map(|key| {
         evaluate_key_viability(
             key,
@@ -446,6 +450,7 @@ mod tests {
             true,
             &old_scan,
             &new_scan,
+            None,
         );
 
         assert_eq!(suite.schema_overlap.status, CheckStatus::Pass);
@@ -479,6 +484,7 @@ mod tests {
             false,
             &old_scan,
             &new_scan,
+            None,
         );
 
         assert!(suite.key_viability.is_none());
@@ -514,6 +520,7 @@ mod tests {
             false,
             &old_scan,
             &new_scan,
+            None,
         );
 
         assert!(suite.key_viability.is_some());

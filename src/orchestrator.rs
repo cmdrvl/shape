@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::capsule;
@@ -153,7 +153,14 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         .as_ref()
         .and_then(|p| p.profile_sha256.clone());
 
-    let domain = match execute_pipeline(args, old_path, new_path, forced_delimiter) {
+    let include_set = resolved_profile.as_ref().map(|p| p.include_set());
+    let domain = match execute_pipeline(
+        args,
+        old_path,
+        new_path,
+        forced_delimiter,
+        include_set.as_ref(),
+    ) {
         Ok(result) => result,
         Err(refusal) => {
             let output = render_refusal_output(
@@ -204,6 +211,7 @@ fn execute_pipeline(
     old_path: &Path,
     new_path: &Path,
     forced_delimiter: Option<u8>,
+    include_set: Option<&HashSet<Vec<u8>>>,
 ) -> Result<PipelineDomainResult, PipelineRefusal> {
     let old_file = old_path.to_string_lossy().into_owned();
     let new_file = new_path.to_string_lossy().into_owned();
@@ -232,6 +240,7 @@ fn execute_pipeline(
         let schema = crate::checks::schema_overlap::evaluate_schema_overlap(
             &old_input.headers,
             &new_input.headers,
+            include_set,
         );
         schema.columns_common
     };
@@ -297,6 +306,7 @@ fn execute_pipeline(
         key_found_new,
         &old_scan,
         &new_scan,
+        include_set,
     );
     let reasons = build_reasons(&suite);
     let outcome = determine_outcome(&suite);
@@ -486,8 +496,14 @@ mod tests {
         let new_file = TempCsv::new("new-valid", "loan_id,balance\nA1,100\n");
         let args = args(old_missing.clone(), new_file.path.clone(), None, false);
 
-        let refusal = execute_pipeline(&args, old_missing.as_path(), new_file.path.as_path(), None)
-            .expect_err("missing old file should fail fast");
+        let refusal = execute_pipeline(
+            &args,
+            old_missing.as_path(),
+            new_file.path.as_path(),
+            None,
+            None,
+        )
+        .expect_err("missing old file should fail fast");
 
         assert_eq!(refusal.refusal.code, RefusalCode::EIo);
         assert_eq!(
@@ -508,6 +524,7 @@ mod tests {
             &args,
             old_file.path.as_path(),
             new_file.path.as_path(),
+            None,
             None,
         )
         .expect_err("duplicate headers in new file should refuse");
@@ -537,6 +554,7 @@ mod tests {
             old_file.path.as_path(),
             new_file.path.as_path(),
             None,
+            None,
         )
         .expect("pipeline should succeed");
 
@@ -561,6 +579,7 @@ mod tests {
             &args,
             old_file.path.as_path(),
             new_file.path.as_path(),
+            None,
             None,
         )
         .expect("pipeline should succeed");

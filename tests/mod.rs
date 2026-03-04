@@ -524,6 +524,7 @@ fn check_suite_assembly_with_key_sets_optional_fields() {
     let schema = evaluate_schema_overlap(
         &[b"loan_id".to_vec(), b"balance".to_vec()],
         &[b"loan_id".to_vec(), b"balance".to_vec()],
+        None,
     );
     let old_scan = key_scan(&[b"K1", b"K2"], 0, 0);
     let new_scan = key_scan(&[b"K1", b"K3"], 0, 0);
@@ -563,7 +564,7 @@ fn check_suite_assembly_with_key_sets_optional_fields() {
 
 #[test]
 fn check_suite_assembly_without_key_uses_nullability_contract() {
-    let schema = evaluate_schema_overlap(&[b"a".to_vec()], &[b"a".to_vec()]);
+    let schema = evaluate_schema_overlap(&[b"a".to_vec()], &[b"a".to_vec()], None);
     let rows = evaluate_row_granularity(3, 4, None);
     let types = TypeConsistencyResult {
         status: CheckStatus::Pass,
@@ -590,6 +591,7 @@ fn check_suite_assembly_key_missing_is_incompatible_with_expected_nulls() {
     let schema = evaluate_schema_overlap(
         &[b"loan_id".to_vec(), b"balance".to_vec()],
         &[b"id".to_vec(), b"balance".to_vec()],
+        None,
     );
     let old_scan = key_scan(&[b"K1", b"K2"], 0, 0);
     let key = evaluate_key_viability(b"loan_id".to_vec(), true, false, Some(&old_scan), None);
@@ -626,7 +628,7 @@ fn check_suite_assembly_key_missing_is_incompatible_with_expected_nulls() {
 #[test]
 fn human_compatible_without_key_omits_key_lines_and_overlap_metrics() {
     let suite = CheckSuite {
-        schema_overlap: evaluate_schema_overlap(&[b"a".to_vec()], &[b"a".to_vec()]),
+        schema_overlap: evaluate_schema_overlap(&[b"a".to_vec()], &[b"a".to_vec()], None),
         key_viability: None,
         row_granularity: evaluate_row_granularity(3_214, 3_201, None),
         type_consistency: TypeConsistencyResult {
@@ -657,6 +659,7 @@ fn human_incompatible_missing_key_keeps_rows_line_without_overlap_detail() {
         schema_overlap: evaluate_schema_overlap(
             &[b"loan_id".to_vec(), b"amount".to_vec()],
             &[b"amount".to_vec(), b"status".to_vec()],
+            None,
         ),
         key_viability: Some(evaluate_key_viability(
             b"loan_id".to_vec(),
