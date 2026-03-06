@@ -344,7 +344,7 @@ A column is numeric if every non-missing value parses as a finite number.
 | `E_INPUT_DRIFT` | Input file hash doesn't match the referenced lock member | Use the locked file; regenerate lock if expected |
 | `E_TOO_LARGE` | Input exceeds `--max-rows` or `--max-bytes` | Increase limit or split input |
 
-> **Note:** `E_AMBIGUOUS_PROFILE`, `E_INPUT_NOT_LOCKED`, `E_INPUT_DRIFT`, and `E_TOO_LARGE` are defined now for schema stability but cannot trigger until the corresponding flags (`--profile`, `--lock`, `--max-rows`/`--max-bytes`) ship.
+> **Note:** `E_INPUT_NOT_LOCKED`, `E_INPUT_DRIFT`, and `E_TOO_LARGE` are defined now for schema stability but cannot trigger until the corresponding flags (`--lock`, `--max-rows`/`--max-bytes`) ship.
 
 Refusal envelope (same as all spine tools):
 

@@ -184,6 +184,7 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
                     Outcome::Refusal,
                     &output,
                     Some(&refusal.refusal),
+                    resolved_profile.as_ref(),
                     capsule_dir,
                 )?;
             }
@@ -204,7 +205,14 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         resolved_profile.as_ref(),
     )?;
     if let Some(capsule_dir) = args.capsule_dir.as_deref() {
-        capsule::write_run_capsule(args, domain.outcome, &output, None, capsule_dir)?;
+        capsule::write_run_capsule(
+            args,
+            domain.outcome,
+            &output,
+            None,
+            resolved_profile.as_ref(),
+            capsule_dir,
+        )?;
     }
     Ok(PipelineResult {
         outcome: domain.outcome,
@@ -734,6 +742,40 @@ mod tests {
         assert!(value["dialect"]["old"].is_null());
         assert!(value["dialect"]["new"].is_null());
         assert_eq!(value["refusal"]["code"], "E_DIALECT");
+    }
+
+    #[test]
+    fn run_refusal_for_ambiguous_profile_selectors_uses_refusal_payload() {
+        let mut human_args = args(
+            PathBuf::from("old.csv"),
+            PathBuf::from("new.csv"),
+            Some("loan_id"),
+            false,
+        );
+        human_args.profile = Some(PathBuf::from("profile.yaml"));
+        human_args.profile_id = Some("monthly".to_string());
+
+        let human = super::run(&human_args).expect("human run should return refusal payload");
+        assert_eq!(human.outcome, crate::checks::suite::Outcome::Refusal);
+        assert!(human.output.contains("SHAPE ERROR (E_AMBIGUOUS_PROFILE)"));
+        assert!(
+            human
+                .output
+                .contains("provide exactly one profile selector.")
+        );
+
+        let mut json_args = human_args.clone();
+        json_args.json = true;
+
+        let json = super::run(&json_args).expect("json run should return refusal payload");
+        assert_eq!(json.outcome, crate::checks::suite::Outcome::Refusal);
+        let value: serde_json::Value = serde_json::from_str(&json.output).expect("valid json");
+        assert_eq!(value["outcome"], "REFUSAL");
+        assert_eq!(value["refusal"]["code"], "E_AMBIGUOUS_PROFILE");
+        assert_eq!(value["refusal"]["detail"]["profile_path"], "profile.yaml");
+        assert_eq!(value["refusal"]["detail"]["profile_id"], "monthly");
+        assert!(value["dialect"]["old"].is_null());
+        assert!(value["dialect"]["new"].is_null());
     }
 
     #[test]

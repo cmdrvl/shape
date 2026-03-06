@@ -9,6 +9,7 @@ mod min_repro;
 use self::min_repro::{ReproLimits, extract_minimal_repro};
 use crate::checks::suite::Outcome;
 use crate::cli::args::Args;
+use crate::profile::{ResolvedProfile, render_profile_yaml};
 use crate::refusal::payload::RefusalPayload;
 use crate::witness::hash::hash_bytes;
 
@@ -16,6 +17,7 @@ const MANIFEST_FILENAME: &str = "manifest.json";
 const OLD_ARTIFACT_PATH: &str = "inputs/old.csv";
 const NEW_ARTIFACT_PATH: &str = "inputs/new.csv";
 const OUTPUT_ARTIFACT_PATH: &str = "outputs/report.txt";
+const PROFILE_ARTIFACT_PATH: &str = "profile.yaml";
 
 #[derive(Debug, Serialize)]
 struct CapsuleManifest {
@@ -84,13 +86,14 @@ pub fn write_run_capsule(
     outcome: Outcome,
     output: &str,
     refusal: Option<&RefusalPayload>,
+    resolved_profile: Option<&ResolvedProfile>,
     capsule_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(capsule_dir)?;
     let repro_limits = ReproLimits::from_optional(args.max_rows, args.max_bytes);
     let refusal_code = refusal.map(|payload| payload.code.as_str());
 
-    let artifacts = vec![
+    let mut artifacts = vec![
         write_input_artifact(
             capsule_dir,
             "old_input",
@@ -111,8 +114,15 @@ pub fn write_run_capsule(
         )?,
         write_output_artifact(capsule_dir, output)?,
     ];
+    if let Some(profile) = resolved_profile {
+        artifacts.push(write_profile_artifact(
+            capsule_dir,
+            profile,
+            args.profile.as_deref(),
+        )?);
+    }
 
-    let replay_argv = build_replay_argv(args);
+    let replay_argv = build_replay_argv(args, resolved_profile.is_some());
     let manifest = CapsuleManifest {
         schema_version: "shape.capsule.v0",
         tool: CapsuleTool {
@@ -232,6 +242,25 @@ fn write_output_artifact(
     })
 }
 
+fn write_profile_artifact(
+    capsule_dir: &Path,
+    profile: &ResolvedProfile,
+    source_path: Option<&Path>,
+) -> Result<CapsuleArtifact, std::io::Error> {
+    let profile_path = capsule_dir.join(PROFILE_ARTIFACT_PATH);
+    fs::write(&profile_path, render_profile_yaml(profile).as_bytes())?;
+
+    let bytes = fs::read(&profile_path)?;
+    Ok(CapsuleArtifact {
+        name: "profile",
+        path: PROFILE_ARTIFACT_PATH,
+        source_path: source_path.map(path_to_string),
+        bytes: Some(bytes.len() as u64),
+        blake3: Some(format!("blake3:{}", hash_bytes(&bytes))),
+        source_error: None,
+    })
+}
+
 fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
     match fs::remove_file(path) {
         Ok(_) => Ok(()),
@@ -240,7 +269,7 @@ fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
     }
 }
 
-fn build_replay_argv(args: &Args) -> Vec<String> {
+fn build_replay_argv(args: &Args, use_local_profile: bool) -> Vec<String> {
     let mut argv = vec![
         "shape".to_owned(),
         OLD_ARTIFACT_PATH.to_owned(),
@@ -261,11 +290,13 @@ fn build_replay_argv(args: &Args) -> Vec<String> {
     if args.no_witness {
         argv.push("--no-witness".to_owned());
     }
-    if let Some(profile) = args.profile.as_ref() {
+    if use_local_profile {
+        argv.push("--profile".to_owned());
+        argv.push(PROFILE_ARTIFACT_PATH.to_owned());
+    } else if let Some(profile) = args.profile.as_ref() {
         argv.push("--profile".to_owned());
         argv.push(path_to_string(profile));
-    }
-    if let Some(profile_id) = args.profile_id.as_ref() {
+    } else if let Some(profile_id) = args.profile_id.as_ref() {
         argv.push("--profile-id".to_owned());
         argv.push(profile_id.clone());
     }
@@ -381,6 +412,7 @@ mod tests {
             Outcome::Compatible,
             output,
             None,
+            None,
             capsule_dir.as_path(),
         )
         .expect("write capsule");
@@ -441,6 +473,7 @@ mod tests {
             Outcome::Refusal,
             "SHAPE ERROR (E_IO)\n",
             Some(&refusal),
+            None,
             capsule_dir.as_path(),
         )
         .expect("write refusal capsule");

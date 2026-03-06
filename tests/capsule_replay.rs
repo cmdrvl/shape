@@ -65,6 +65,12 @@ fn refusal_code(payload: &Value) -> Option<&str> {
         .and_then(Value::as_str)
 }
 
+fn write_file(dir: &Path, name: &str, content: &str) -> PathBuf {
+    let path = dir.join(name);
+    fs::write(&path, content).expect("test file should be writable");
+    path
+}
+
 fn run_and_assert_replay_scenario(scenario: &ReplayScenario) {
     let capsule_dir = unique_capsule_dir(scenario.label);
     fs::create_dir_all(&capsule_dir).expect("create capsule dir");
@@ -181,4 +187,99 @@ fn capsule_replay_preserves_outcome_and_refusal_code() {
     for scenario in scenarios {
         run_and_assert_replay_scenario(&scenario);
     }
+}
+
+#[test]
+fn capsule_replay_with_relative_profile_uses_local_profile_artifact() {
+    let workspace = unique_capsule_dir("profile-workspace");
+    let capsule_dir = workspace.join("capsule");
+    fs::create_dir_all(&workspace).expect("create workspace");
+    fs::create_dir_all(&capsule_dir).expect("create capsule dir");
+    write_file(
+        &workspace,
+        "old.csv",
+        "loan_id,balance,status\nA1,100,active\nA2,200,active\n",
+    );
+    write_file(
+        &workspace,
+        "new.csv",
+        "loan_id,balance,status\nA1,110,active\nA2,200,active\n",
+    );
+    write_file(
+        &workspace,
+        "profile.yaml",
+        "profile_id: loan-tape.v0\nprofile_sha256: sha256:test-loan-tape\ninclude_columns:\n  - loan_id\n  - balance\nkey:\n  - loan_id\n",
+    );
+
+    let first = run_shape(
+        [
+            "old.csv",
+            "new.csv",
+            "--json",
+            "--no-witness",
+            "--capsule-dir",
+            "capsule",
+            "--profile",
+            "profile.yaml",
+        ],
+        Some(workspace.as_path()),
+    );
+    assert_eq!(first.status, 0);
+    assert!(
+        first.stderr.trim().is_empty(),
+        "first run should not write stderr in --json mode: {}",
+        first.stderr
+    );
+
+    let manifest_text = fs::read_to_string(capsule_dir.join("manifest.json"))
+        .expect("capsule manifest should be written");
+    let manifest: Value =
+        serde_json::from_str(&manifest_text).expect("capsule manifest should parse");
+    assert_eq!(manifest["args"]["profile"], "profile.yaml");
+    assert!(capsule_dir.join("profile.yaml").is_file());
+
+    let replay_argv = manifest["replay"]["argv"]
+        .as_array()
+        .expect("replay argv should be array")
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .expect("replay argv values should be strings")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    assert!(replay_argv.contains(&"--profile".to_owned()));
+    assert!(replay_argv.contains(&"profile.yaml".to_owned()));
+    assert!(
+        !replay_argv.contains(
+            &workspace
+                .join("profile.yaml")
+                .to_string_lossy()
+                .into_owned()
+        )
+    );
+
+    let replay = run_shape(
+        replay_argv.iter().skip(1).map(std::string::String::as_str),
+        Some(capsule_dir.as_path()),
+    );
+    assert_eq!(replay.status, 0);
+    assert!(
+        replay.stderr.trim().is_empty(),
+        "replay run should not write stderr in --json mode: {}",
+        replay.stderr
+    );
+    let first_payload: Value = serde_json::from_str(first.stdout_trimmed())
+        .expect("first run should emit valid json output");
+    let replay_payload: Value = serde_json::from_str(replay.stdout_trimmed())
+        .expect("replay run should emit valid json output");
+    assert_eq!(replay_payload["outcome"], first_payload["outcome"]);
+    assert_eq!(replay_payload["profile_id"], first_payload["profile_id"]);
+    assert_eq!(
+        replay_payload["profile_sha256"],
+        first_payload["profile_sha256"]
+    );
+
+    let _ = fs::remove_dir_all(workspace);
 }

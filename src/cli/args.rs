@@ -34,10 +34,10 @@ pub struct Args {
     #[arg(long = "capsule-dir", value_name = "path")]
     pub capsule_dir: Option<PathBuf>,
 
-    #[arg(long, value_name = "path", conflicts_with = "profile_id")]
+    #[arg(long, value_name = "path")]
     pub profile: Option<PathBuf>,
 
-    #[arg(long = "profile-id", value_name = "id", conflicts_with = "profile")]
+    #[arg(long = "profile-id", value_name = "id")]
     pub profile_id: Option<String>,
 
     #[arg(long, value_name = "lockfile", action = ArgAction::Append)]
@@ -185,8 +185,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_rejects_ambiguous_profile_selectors() {
-        let err = Args::parse_from([
+    fn parse_accepts_ambiguous_profile_selectors_for_runtime_refusal() {
+        let args = Args::parse_from([
             "shape",
             "old.csv",
             "new.csv",
@@ -195,9 +195,13 @@ mod tests {
             "--profile-id",
             "monthly",
         ])
-        .expect_err("expected parse failure");
+        .expect("expected parse success");
 
-        assert_eq!(err.kind(), ErrorKind::ArgumentConflict);
+        assert_eq!(
+            args.profile.as_deref().and_then(|path| path.to_str()),
+            Some("profile.toml")
+        );
+        assert_eq!(args.profile_id.as_deref(), Some("monthly"));
     }
 
     #[test]
@@ -286,18 +290,22 @@ mod tests {
 
         let command = args.command.expect("witness command expected");
         match command {
-            ShapeCommand::Witness { action } => match action {
-                WitnessAction::Query(query) => {
-                    assert_eq!(query.tool.as_deref(), Some("shape"));
-                    assert_eq!(query.since.as_deref(), Some("2026-01-01T00:00:00Z"));
-                    assert_eq!(query.until.as_deref(), Some("2026-01-02T00:00:00Z"));
-                    assert_eq!(query.outcome.as_deref(), Some("COMPATIBLE"));
-                    assert_eq!(query.input_hash.as_deref(), Some("abc123"));
-                    assert_eq!(query.limit, 5);
-                    assert!(query.json);
-                }
-                _ => panic!("expected witness query action"),
-            },
+            ShapeCommand::Witness { action } => {
+                assert!(
+                    matches!(action, WitnessAction::Query(_)),
+                    "unexpected witness action: {action:?}"
+                );
+                let WitnessAction::Query(query) = action else {
+                    return;
+                };
+                assert_eq!(query.tool.as_deref(), Some("shape"));
+                assert_eq!(query.since.as_deref(), Some("2026-01-01T00:00:00Z"));
+                assert_eq!(query.until.as_deref(), Some("2026-01-02T00:00:00Z"));
+                assert_eq!(query.outcome.as_deref(), Some("COMPATIBLE"));
+                assert_eq!(query.input_hash.as_deref(), Some("abc123"));
+                assert_eq!(query.limit, 5);
+                assert!(query.json);
+            }
         }
     }
 
@@ -311,12 +319,16 @@ mod tests {
 
         let command = args.command.expect("witness command expected");
         match command {
-            ShapeCommand::Witness { action } => match action {
-                WitnessAction::Last(last) => {
-                    assert!(last.json);
-                }
-                _ => panic!("expected witness last action"),
-            },
+            ShapeCommand::Witness { action } => {
+                assert!(
+                    matches!(action, WitnessAction::Last(_)),
+                    "unexpected witness action: {action:?}"
+                );
+                let WitnessAction::Last(last) = action else {
+                    return;
+                };
+                assert!(last.json);
+            }
         }
     }
 
@@ -342,17 +354,21 @@ mod tests {
 
         let command = args.command.expect("witness command expected");
         match command {
-            ShapeCommand::Witness { action } => match action {
-                WitnessAction::Count(count) => {
-                    assert_eq!(count.tool.as_deref(), Some("shape"));
-                    assert_eq!(count.since.as_deref(), Some("2026-01-01T00:00:00Z"));
-                    assert_eq!(count.until.as_deref(), Some("2026-01-02T00:00:00Z"));
-                    assert_eq!(count.outcome.as_deref(), Some("INCOMPATIBLE"));
-                    assert_eq!(count.input_hash.as_deref(), Some("feedbeef"));
-                    assert!(count.json);
-                }
-                _ => panic!("expected witness count action"),
-            },
+            ShapeCommand::Witness { action } => {
+                assert!(
+                    matches!(action, WitnessAction::Count(_)),
+                    "unexpected witness action: {action:?}"
+                );
+                let WitnessAction::Count(count) = action else {
+                    return;
+                };
+                assert_eq!(count.tool.as_deref(), Some("shape"));
+                assert_eq!(count.since.as_deref(), Some("2026-01-01T00:00:00Z"));
+                assert_eq!(count.until.as_deref(), Some("2026-01-02T00:00:00Z"));
+                assert_eq!(count.outcome.as_deref(), Some("INCOMPATIBLE"));
+                assert_eq!(count.input_hash.as_deref(), Some("feedbeef"));
+                assert!(count.json);
+            }
         }
     }
 

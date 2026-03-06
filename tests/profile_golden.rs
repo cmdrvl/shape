@@ -257,7 +257,7 @@ fn profile_with_redacted_default() {
 }
 
 // ---------------------------------------------------------------------------
-// 6. capsule_replay_includes_profile_flags
+// 6. capsule_replay_records_profile_arg_but_replays_from_local_artifact
 // ---------------------------------------------------------------------------
 
 fn unique_capsule_dir(label: &str) -> PathBuf {
@@ -274,7 +274,7 @@ fn unique_capsule_dir(label: &str) -> PathBuf {
 }
 
 #[test]
-fn capsule_replay_includes_profile_flags() {
+fn capsule_replay_records_profile_arg_but_replays_from_local_artifact() {
     let capsule_dir = unique_capsule_dir("profile-replay");
     let profile = profile_arg(PROFILE_LOAN_TAPE);
     let result = run_shape_with_fixtures(
@@ -309,7 +309,12 @@ fn capsule_replay_includes_profile_flags() {
         "capsule manifest should record the --profile path"
     );
 
-    // Replay argv includes --profile.
+    assert!(
+        capsule_dir.join("profile.yaml").is_file(),
+        "capsule should include a local profile artifact"
+    );
+
+    // Replay argv includes the local profile artifact, not the original path.
     let replay_argv: Vec<&str> = manifest["replay"]["argv"]
         .as_array()
         .expect("replay argv should be array")
@@ -322,8 +327,12 @@ fn capsule_replay_includes_profile_flags() {
         "replay argv should include --profile flag: {replay_argv:?}"
     );
     assert!(
-        replay_argv.contains(&profile.as_str()),
-        "replay argv should include the profile path: {replay_argv:?}"
+        replay_argv.contains(&"profile.yaml"),
+        "replay argv should include the local profile artifact: {replay_argv:?}"
+    );
+    assert!(
+        !replay_argv.contains(&profile.as_str()),
+        "replay argv should not depend on the original profile path: {replay_argv:?}"
     );
 
     // Replay shell string includes --profile.
@@ -333,6 +342,10 @@ fn capsule_replay_includes_profile_flags() {
     assert!(
         replay_shell.contains("--profile"),
         "replay shell command should include --profile: {replay_shell}"
+    );
+    assert!(
+        replay_shell.contains("profile.yaml"),
+        "replay shell command should use the local profile artifact: {replay_shell}"
     );
 
     let _ = fs::remove_dir_all(capsule_dir);

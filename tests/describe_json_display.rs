@@ -94,8 +94,8 @@ fn describe_still_surfaces_parse_validation_errors() {
 }
 
 #[test]
-fn describe_still_surfaces_profile_selector_conflicts() {
-    assert_describe_parse_failure_variants(
+fn describe_bypasses_runtime_profile_selector_validation() {
+    let cases: &[&[&str]] = &[
         &[
             "--describe",
             "--profile",
@@ -111,8 +111,9 @@ fn describe_still_surfaces_profile_selector_conflicts() {
             "--profile-id",
             "monthly",
         ],
-        "--profile-id",
-    );
+    ];
+
+    assert_describe_success_cases(cases);
 }
 
 #[test]

@@ -113,6 +113,41 @@ pub fn resolve_profile_id(selector: &str) -> Result<ResolvedProfile, ResolveErro
     resolve_profile_id_in_directory(selector, &search_root)
 }
 
+pub fn render_profile_yaml(profile: &ResolvedProfile) -> String {
+    let mut out = String::new();
+    if let Some(profile_id) = profile.profile_id.as_deref() {
+        out.push_str("profile_id: ");
+        out.push_str(profile_id);
+        out.push('\n');
+    }
+    if let Some(profile_sha256) = profile.profile_sha256.as_deref() {
+        out.push_str("profile_sha256: ");
+        out.push_str(profile_sha256);
+        out.push('\n');
+    }
+    out.push_str("include_columns:\n");
+    for column in &profile.include_columns {
+        out.push_str("  - ");
+        out.push_str(String::from_utf8_lossy(column).as_ref());
+        out.push('\n');
+    }
+    out.push_str("key:\n");
+    if profile.key_labels.is_empty() {
+        for key in &profile.key_columns {
+            out.push_str("  - ");
+            out.push_str(String::from_utf8_lossy(key).as_ref());
+            out.push('\n');
+        }
+    } else {
+        for key in &profile.key_labels {
+            out.push_str("  - ");
+            out.push_str(key);
+            out.push('\n');
+        }
+    }
+    out
+}
+
 fn default_profile_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)
@@ -543,15 +578,17 @@ include_columns:
         let result = load_profile_from_path(&dir);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        match &err {
-            ResolveError::Invalid { error, .. } => {
-                assert!(
-                    error.contains("directory"),
-                    "error should mention directory: {error}"
-                );
-            }
-            other => panic!("expected ResolveError::Invalid, got: {other:?}"),
-        }
+        assert!(
+            matches!(err, ResolveError::Invalid { .. }),
+            "expected ResolveError::Invalid, got: {err:?}"
+        );
+        let ResolveError::Invalid { error, .. } = &err else {
+            return;
+        };
+        assert!(
+            error.contains("directory"),
+            "error should mention directory: {error}"
+        );
 
         std::fs::remove_dir_all(dir).ok();
     }
@@ -570,5 +607,28 @@ include_columns:
         assert_eq!(set.len(), 2);
         assert!(set.contains(b"loan_id".as_slice()));
         assert!(set.contains(b"balance".as_slice()));
+    }
+
+    #[test]
+    fn rendered_profile_round_trips_through_loader() {
+        let dir = temp_dir();
+        let path = dir.join("rendered.yaml");
+        let profile = ResolvedProfile {
+            include_columns: vec![b"loan_id".to_vec(), b"balance".to_vec(), b"rate".to_vec()],
+            key_columns: vec![b"loan_id".to_vec(), b"as_of_date".to_vec()],
+            key_labels: vec!["loan_id".to_string(), "as_of_date".to_string()],
+            profile_id: Some("csv.demo.v0".to_string()),
+            profile_sha256: Some("sha256:abc123".to_string()),
+        };
+        std::fs::write(&path, render_profile_yaml(&profile)).unwrap();
+
+        let loaded = load_profile_from_path(&path).expect("rendered profile should load");
+        assert_eq!(loaded.include_columns, profile.include_columns);
+        assert_eq!(loaded.key_columns, profile.key_columns);
+        assert_eq!(loaded.key_labels, profile.key_labels);
+        assert_eq!(loaded.profile_id, profile.profile_id);
+        assert_eq!(loaded.profile_sha256, profile.profile_sha256);
+
+        std::fs::remove_dir_all(dir).ok();
     }
 }

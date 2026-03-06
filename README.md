@@ -245,7 +245,7 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
-| `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output) to this directory. |
+| `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
 
 <details>
@@ -296,6 +296,7 @@ capsules/run-001/
   inputs/old.csv
   inputs/new.csv
   outputs/report.txt
+  profile.yaml   # when a profile is active
 ```
 
 Replay from the capsule directory:
@@ -305,7 +306,7 @@ cd capsules/run-001
 shape inputs/old.csv inputs/new.csv --key loan_id --json --no-witness
 ```
 
-`manifest.json` also stores replay args and a shell command under `replay.argv` and `replay.shell`.
+`manifest.json` also stores replay args and a shell command under `replay.argv` and `replay.shell`. When `--profile` or `--profile-id` is active, replay uses the capsule-local `profile.yaml` artifact so the handoff stays self-contained.
 
 ---
 
@@ -435,13 +436,13 @@ Every refusal includes the error code and a concrete next step.
 | `E_EMPTY` | One or both files empty | Provide non-empty datasets |
 | `E_HEADERS` | Missing header or duplicate headers | Fix headers or re-export |
 | `E_DIALECT` | Delimiter ambiguous or undetectable | Use `--delimiter <delim>` |
+| `E_AMBIGUOUS_PROFILE` | Both `--profile` and `--profile-id` provided | Provide exactly one profile selector |
 
 <details>
 <summary><strong>Reserved refusal codes</strong> (defined for schema stability, not emitted in v0)</summary>
 
 | Code | Meaning | Next Step |
 |------|---------|-----------|
-| `E_AMBIGUOUS_PROFILE` | Both `--profile` and `--profile-id` provided | Provide exactly one profile selector |
 | `E_INPUT_NOT_LOCKED` | Input not in any provided lockfile | Re-run with correct `--lock` or lock inputs first |
 | `E_INPUT_DRIFT` | Input hash doesn't match locked member | Use the locked file; regenerate lock if expected |
 | `E_TOO_LARGE` | Input exceeds `--max-rows` or `--max-bytes` | Increase limit or split input |
@@ -493,7 +494,7 @@ A cell in the new file has a value that can't be parsed as a number (e.g., `#REF
 | **In-memory** | Both files are loaded fully into memory. No streaming mode yet. |
 | **No column filtering** | All common columns are checked. You can't exclude specific columns in v0. |
 | **No content sampling** | shape doesn't look at data distributions or outliers — it checks structure only. |
-| **Profile/lock not enforced** | `--profile`, `--lock`, `--max-rows`, `--max-bytes` are parsed but have no runtime effect in v0. |
+| **Lock/size gates deferred** | `--lock`, `--max-rows`, and `--max-bytes` are parsed but do not gate runtime behavior in v0. `--profile` and `--profile-id` do affect check scoping. |
 
 ---
 
