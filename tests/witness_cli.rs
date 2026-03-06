@@ -48,6 +48,12 @@ fn unique_ledger_path(label: &str) -> PathBuf {
     ))
 }
 
+fn unique_temp_dir(label: &str) -> PathBuf {
+    let path = unique_ledger_path(label).with_extension("");
+    fs::create_dir_all(&path).expect("temp dir should be created");
+    path
+}
+
 fn sample_ledger_contents() -> String {
     [
         r#"{"id":"id-1","tool":"shape","version":"0.1.0","binary_hash":"b1","inputs":[{"path":"old.csv","hash":"h111","bytes":10}],"params":{},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"o1","prev":null,"ts":"2026-02-01T00:00:00Z"}"#,
@@ -211,6 +217,44 @@ fn compare_mode_appends_witness_record_by_default() {
     );
 
     let _ = fs::remove_file(&ledger);
+}
+
+#[test]
+fn empty_epistemic_witness_falls_back_to_home_default() {
+    let home = unique_temp_dir("compare-empty-env-home");
+    let ledger = home.join(".epistemic").join("witness.jsonl");
+    let old = fixture_path(BASIC_OLD).to_string_lossy().into_owned();
+    let new = fixture_path(BASIC_NEW).to_string_lossy().into_owned();
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_shape"));
+    command.arg(&old).arg(&new);
+    command.env("HOME", &home);
+    command.env("EPISTEMIC_WITNESS", "");
+    let result = shape_invocation_from_output(
+        command
+            .output()
+            .expect("failed to execute shape binary for empty witness env test"),
+    );
+
+    assert_eq!(result.status, 0);
+    assert!(result.stdout.contains("COMPATIBLE"));
+    assert!(
+        result.stderr.trim().is_empty(),
+        "empty witness env should fall back cleanly: {}",
+        result.stderr
+    );
+    assert!(ledger.exists(), "default witness ledger should be created");
+
+    let content = fs::read_to_string(&ledger).expect("witness ledger should be readable");
+    let line = content
+        .lines()
+        .next()
+        .expect("witness ledger should contain a record");
+    let record: serde_json::Value =
+        serde_json::from_str(line).expect("ledger line should be valid witness JSON");
+    assert_eq!(record["tool"], "shape");
+
+    let _ = fs::remove_dir_all(&home);
 }
 
 #[test]

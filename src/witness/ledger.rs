@@ -8,7 +8,9 @@ use super::record::{WitnessRecord, canonical_json};
 /// 1) `EPISTEMIC_WITNESS` when set
 /// 2) `~/.epistemic/witness.jsonl` fallback
 pub(crate) fn resolve_ledger_path() -> io::Result<PathBuf> {
-    if let Ok(path) = std::env::var("EPISTEMIC_WITNESS") {
+    if let Ok(path) = std::env::var("EPISTEMIC_WITNESS")
+        && !path.trim().is_empty()
+    {
         return Ok(PathBuf::from(path));
     }
 
