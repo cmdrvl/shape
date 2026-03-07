@@ -13,4 +13,14 @@ golden_rules_suite! {
         "src/capsule/mod.rs",
         "src/capsule/min_repro.rs",
     ],
+    fixture_success_args: &[
+        "tests/fixtures/basic_old.csv",
+        "tests/fixtures/basic_new.csv",
+        "--json", "--no-witness",
+    ],
+    fixture_refusal_args: &[
+        "/nonexistent/old.csv",
+        "/nonexistent/new.csv",
+        "--json", "--no-witness",
+    ],
 }
