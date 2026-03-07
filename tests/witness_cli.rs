@@ -56,8 +56,8 @@ fn unique_temp_dir(label: &str) -> PathBuf {
 
 fn sample_ledger_contents() -> String {
     [
-        r#"{"id":"id-1","tool":"shape","version":"0.1.0","binary_hash":"b1","inputs":[{"path":"old.csv","hash":"h111","bytes":10}],"params":{},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"o1","prev":null,"ts":"2026-02-01T00:00:00Z"}"#,
-        r#"{"id":"id-2","tool":"shape","version":"0.1.0","binary_hash":"b2","inputs":[{"path":"new.csv","hash":"h222","bytes":11}],"params":{},"outcome":"INCOMPATIBLE","exit_code":1,"output_hash":"o2","prev":"id-1","ts":"2026-02-02T00:00:00Z"}"#,
+        r#"{"id":"id-1","tool":"shape","version":"0.1.0","binary_hash":"b1","inputs":[{"path":"old.csv","hash":"h111","bytes":10}],"params":{},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"o1","ts":"2026-02-01T00:00:00Z"}"#,
+        r#"{"id":"id-2","tool":"shape","version":"0.1.0","binary_hash":"b2","inputs":[{"path":"new.csv","hash":"h222","bytes":11}],"params":{},"outcome":"INCOMPATIBLE","exit_code":1,"output_hash":"o2","ts":"2026-02-02T00:00:00Z"}"#,
     ]
     .join("\n")
         + "\n"
@@ -145,7 +145,6 @@ fn witness_success_paths_read_records_from_epistemic_witness_ledger() {
         "outcome",
         "exit_code",
         "output_hash",
-        "prev",
         "ts",
     ] {
         assert!(

@@ -49,8 +49,6 @@ fn record_run_with_writer(
 
     let old_path_str = old_path.to_string_lossy().into_owned();
     let new_path_str = new_path.to_string_lossy().into_owned();
-    let prev = writer.read_prev();
-
     let mut record = record::WitnessRecord::from_run(
         args,
         result,
@@ -58,7 +56,6 @@ fn record_run_with_writer(
         &new_bytes,
         &old_path_str,
         &new_path_str,
-        prev,
     );
     record.compute_id();
     writer.append(&record)?;
@@ -152,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn record_run_with_writer_chains_prev_values() {
+    fn record_run_with_writer_appends_multiple_receipts() {
         let dir = temp_dir();
         let old = write_csv(&dir, "old.csv", "id,value\nA,1\n");
         let new = write_csv(&dir, "new.csv", "id,value\nA,2\n");
@@ -171,7 +168,9 @@ mod tests {
 
         let first: serde_json::Value = serde_json::from_str(lines[0]).expect("parse first");
         let second: serde_json::Value = serde_json::from_str(lines[1]).expect("parse second");
-        assert_eq!(second["prev"], first["id"]);
+        assert_ne!(second["id"], first["id"]);
+        assert_eq!(first["outcome"], "COMPATIBLE");
+        assert_eq!(second["outcome"], "INCOMPATIBLE");
 
         std::fs::remove_file(ledger_path).ok();
         std::fs::remove_dir_all(dir).ok();

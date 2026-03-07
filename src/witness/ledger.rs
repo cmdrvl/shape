@@ -1,5 +1,5 @@
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufRead, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use super::record::{WitnessRecord, canonical_json};
@@ -35,26 +35,6 @@ impl LedgerWriter {
 
     pub fn with_path(path: PathBuf) -> Self {
         Self { path }
-    }
-
-    /// Read the id of the last valid ledger line.
-    ///
-    /// Best-effort only: malformed/empty ledgers return `None`.
-    pub fn read_prev(&self) -> Option<String> {
-        let file = File::open(&self.path).ok()?;
-        let reader = io::BufReader::new(file);
-
-        let mut last_non_empty = None;
-        for line in reader.lines().map_while(Result::ok) {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                last_non_empty = Some(trimmed.to_owned());
-            }
-        }
-
-        let last = last_non_empty?;
-        let value: serde_json::Value = serde_json::from_str(&last).ok()?;
-        value.get("id")?.as_str().map(ToOwned::to_owned)
     }
 
     /// Append a record as canonical JSONL.
@@ -93,7 +73,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn make_record(prev: Option<String>) -> WitnessRecord {
+    fn make_record() -> WitnessRecord {
         let args = Args {
             old: Some(PathBuf::from("old.csv")),
             new: Some(PathBuf::from("new.csv")),
@@ -119,7 +99,7 @@ mod tests {
             resolved_profile_sha256: None,
         };
         let mut record =
-            WitnessRecord::from_run(&args, &result, b"old", b"new", "old.csv", "new.csv", prev);
+            WitnessRecord::from_run(&args, &result, b"old", b"new", "old.csv", "new.csv");
         record.ts = "2026-01-01T00:00:00Z".to_owned();
         record.compute_id();
         record
@@ -144,7 +124,7 @@ mod tests {
     fn append_creates_file_and_single_line() {
         let path = temp_ledger_path();
         let writer = LedgerWriter::with_path(path.clone());
-        let record = make_record(None);
+        let record = make_record();
         writer.append(&record).expect("append");
 
         let content = std::fs::read_to_string(&path).expect("read ledger");
@@ -159,32 +139,26 @@ mod tests {
     }
 
     #[test]
-    fn append_chain_uses_previous_id() {
+    fn append_is_additive() {
         let path = temp_ledger_path();
         let writer = LedgerWriter::with_path(path.clone());
 
-        let first = make_record(None);
+        let first = make_record();
         writer.append(&first).expect("append first");
-        let prev = writer.read_prev();
-        assert_eq!(prev, Some(first.id.clone()));
-
-        let second = make_record(prev);
+        let mut second = make_record();
+        second.outcome = "INCOMPATIBLE".to_owned();
+        second.compute_id();
         writer.append(&second).expect("append second");
 
         let content = std::fs::read_to_string(&path).expect("read ledger");
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 2);
         let parsed: serde_json::Value = serde_json::from_str(lines[1]).expect("parse second");
-        assert_eq!(parsed["prev"], first.id);
+        assert_eq!(parsed["id"], second.id);
+        assert_eq!(parsed["outcome"], "INCOMPATIBLE");
 
         std::fs::remove_file(path.clone()).ok();
         std::fs::remove_dir(path.parent().expect("parent")).ok();
-    }
-
-    #[test]
-    fn read_prev_returns_none_for_missing_ledger() {
-        let writer = LedgerWriter::with_path(temp_ledger_path());
-        assert!(writer.read_prev().is_none());
     }
 
     #[test]

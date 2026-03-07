@@ -54,8 +54,8 @@ fn unique_ledger_path(label: &str) -> PathBuf {
 
 fn sample_ledger_contents() -> String {
     [
-        r#"{"id":"id-1","tool":"shape","version":"0.1.0","binary_hash":"blake3:b1","inputs":[{"path":"old.csv","hash":"blake3:h111","bytes":10}],"params":{"json":false},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"blake3:o1","prev":null,"ts":"2026-02-01T00:00:00Z"}"#,
-        r#"{"id":"id-2","tool":"shape","version":"0.1.0","binary_hash":"blake3:b2","inputs":[{"path":"new.csv","hash":"blake3:h222","bytes":11}],"params":{"json":true},"outcome":"INCOMPATIBLE","exit_code":1,"output_hash":"blake3:o2","prev":"id-1","ts":"2026-02-02T00:00:00Z"}"#,
+        r#"{"id":"id-1","tool":"shape","version":"0.1.0","binary_hash":"blake3:b1","inputs":[{"path":"old.csv","hash":"blake3:h111","bytes":10}],"params":{"json":false},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"blake3:o1","ts":"2026-02-01T00:00:00Z"}"#,
+        r#"{"id":"id-2","tool":"shape","version":"0.1.0","binary_hash":"blake3:b2","inputs":[{"path":"new.csv","hash":"blake3:h222","bytes":11}],"params":{"json":true},"outcome":"INCOMPATIBLE","exit_code":1,"output_hash":"blake3:o2","ts":"2026-02-02T00:00:00Z"}"#,
     ]
     .join("\n")
         + "\n"
@@ -88,12 +88,6 @@ fn assert_witness_record_shape(record: &Value) {
         object["output_hash"]
             .as_str()
             .is_some_and(|value| value.starts_with("blake3:"))
-    );
-    assert!(
-        object["prev"].is_null()
-            || object["prev"]
-                .as_str()
-                .is_some_and(|value| !value.is_empty())
     );
     assert!(
         object["ts"]
@@ -219,8 +213,8 @@ fn witness_query_ledger_read_error_returns_exit_two() {
 #[test]
 fn witness_query_skips_malformed_ledger_lines_but_keeps_valid_records() {
     let ledger = unique_ledger_path("malformed-lines");
-    let valid_a = r#"{"id":"id-a","tool":"shape","version":"0.1.0","binary_hash":"blake3:ba","inputs":[{"path":"old.csv","hash":"blake3:ha","bytes":10}],"params":{},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"blake3:oa","prev":null,"ts":"2026-02-03T00:00:00Z"}"#;
-    let valid_b = r#"{"id":"id-b","tool":"shape","version":"0.1.0","binary_hash":"blake3:bb","inputs":[{"path":"new.csv","hash":"blake3:hb","bytes":11}],"params":{},"outcome":"INCOMPATIBLE","exit_code":1,"output_hash":"blake3:ob","prev":"id-a","ts":"2026-02-04T00:00:00Z"}"#;
+    let valid_a = r#"{"id":"id-a","tool":"shape","version":"0.1.0","binary_hash":"blake3:ba","inputs":[{"path":"old.csv","hash":"blake3:ha","bytes":10}],"params":{},"outcome":"COMPATIBLE","exit_code":0,"output_hash":"blake3:oa","ts":"2026-02-03T00:00:00Z"}"#;
+    let valid_b = r#"{"id":"id-b","tool":"shape","version":"0.1.0","binary_hash":"blake3:bb","inputs":[{"path":"new.csv","hash":"blake3:hb","bytes":11}],"params":{},"outcome":"INCOMPATIBLE","exit_code":1,"output_hash":"blake3:ob","ts":"2026-02-04T00:00:00Z"}"#;
     fs::write(&ledger, format!("{valid_a}\nnot-json\n\n{valid_b}\n"))
         .expect("write malformed witness ledger fixture");
 

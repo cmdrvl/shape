@@ -17,7 +17,6 @@ pub struct WitnessRecord {
     pub outcome: String,
     pub exit_code: u8,
     pub output_hash: String,
-    pub prev: Option<String>,
     pub ts: String,
 }
 
@@ -45,7 +44,6 @@ impl WitnessRecord {
         new_bytes: &[u8],
         old_path: &str,
         new_path: &str,
-        prev: Option<String>,
     ) -> Self {
         let binary_hash = hash_self()
             .map(|value| format!("blake3:{value}"))
@@ -104,7 +102,6 @@ impl WitnessRecord {
             outcome: outcome.to_owned(),
             exit_code: exit::exit_code(result.outcome),
             output_hash: format!("blake3:{}", hash_bytes(result.output.as_bytes())),
-            prev,
             ts: current_utc_iso8601(),
         }
     }
@@ -207,7 +204,6 @@ mod tests {
             b"new-bytes",
             "old.csv",
             "new.csv",
-            None,
         );
         record.compute_id();
 
@@ -233,7 +229,6 @@ mod tests {
             b"b",
             "a.csv",
             "b.csv",
-            None,
         );
         assert_eq!(compatible.outcome, "COMPATIBLE");
         assert_eq!(compatible.exit_code, 0);
@@ -245,7 +240,6 @@ mod tests {
             b"b",
             "a.csv",
             "b.csv",
-            None,
         );
         assert_eq!(incompatible.outcome, "INCOMPATIBLE");
         assert_eq!(incompatible.exit_code, 1);
@@ -257,7 +251,6 @@ mod tests {
             b"b",
             "a.csv",
             "b.csv",
-            None,
         );
         assert_eq!(refusal.outcome, "REFUSAL");
         assert_eq!(refusal.exit_code, 2);
@@ -268,15 +261,7 @@ mod tests {
         let args = make_args();
         let result = make_result(Outcome::Compatible);
 
-        let mut first = WitnessRecord::from_run(
-            &args,
-            &result,
-            b"a",
-            b"b",
-            "a.csv",
-            "b.csv",
-            Some("prev".to_owned()),
-        );
+        let mut first = WitnessRecord::from_run(&args, &result, b"a", b"b", "a.csv", "b.csv");
         first.ts = "2026-01-01T00:00:00Z".to_owned();
         first.binary_hash = "blake3:fixed".to_owned();
         first.compute_id();

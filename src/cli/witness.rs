@@ -246,7 +246,6 @@ pub struct WitnessRecord {
     pub outcome: String,
     pub exit_code: u8,
     pub output_hash: String,
-    pub prev: Option<String>,
     pub ts: String,
 }
 
@@ -270,9 +269,6 @@ fn format_record_human(record: &WitnessRecord) -> String {
             "input[{index}]: {} ({} bytes, {})",
             input.path, input.bytes, input.hash
         ));
-    }
-    if let Some(prev) = record.prev.as_deref() {
-        lines.push(format!("prev:     {prev}"));
     }
     lines.join("\n")
 }
@@ -368,7 +364,6 @@ mod tests {
             outcome: outcome.to_owned(),
             exit_code,
             output_hash: "blake3:output".to_owned(),
-            prev: None,
             ts: ts.to_owned(),
         }
     }
