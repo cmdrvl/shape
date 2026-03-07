@@ -1,7 +1,7 @@
 {
   "schema_version": "operator.v0",
   "name": "shape",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
