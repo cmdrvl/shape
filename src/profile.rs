@@ -1,8 +1,20 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::normalize::headers::ascii_trim;
+use serde::Deserialize;
+
+use crate::normalize::headers::{ascii_trim, canonicalize_header_identifier};
+
+const COLUMN_NAME_CANONICAL_TYPE: &str = "column_name";
+
+#[derive(Debug, Deserialize)]
+struct MappingEntry {
+    input: String,
+    canonical_id: String,
+    canonical_type: String,
+    rule_id: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct ResolvedProfile {
@@ -11,6 +23,10 @@ pub struct ResolvedProfile {
     pub key_labels: Vec<String>,
     pub profile_id: Option<String>,
     pub profile_sha256: Option<String>,
+    pub column_registry: Option<String>,
+    pub source_path: PathBuf,
+    pub resolved_registry_path: Option<PathBuf>,
+    pub column_aliases: Option<HashMap<Vec<u8>, Vec<u8>>>,
 }
 
 impl ResolvedProfile {
@@ -46,6 +62,7 @@ impl std::error::Error for ResolveError {}
 struct RawProfile {
     profile_id: Option<String>,
     profile_sha256: Option<String>,
+    column_registry: Option<String>,
     include_columns: Vec<String>,
     key: Vec<String>,
 }
@@ -70,20 +87,36 @@ pub fn load_profile_from_path(path: &Path) -> Result<ResolvedProfile, ResolveErr
         error: err,
     })?;
 
+    let column_registry = parsed.column_registry.clone();
+    let (column_aliases, resolved_registry_path) = match column_registry.as_deref() {
+        Some(registry_ref) => {
+            let registry_path = resolve_registry_path(path, registry_ref);
+            let aliases = load_column_registry_aliases(&registry_path).map_err(|error| {
+                ResolveError::Invalid {
+                    selector: selector.clone(),
+                    error,
+                }
+            })?;
+            (Some(aliases), Some(registry_path))
+        }
+        None => (None, None),
+    };
+
     let mut include_columns = Vec::new();
     let mut include_seen = HashSet::new();
     for column in parsed.include_columns {
-        if let Some(bytes) = parse_column_identifier(&column)
-            && include_seen.insert(bytes.clone())
-        {
-            include_columns.push(bytes);
+        if let Some(bytes) = parse_column_identifier(&column) {
+            let canonical = canonicalize_header_identifier(&bytes, column_aliases.as_ref());
+            if include_seen.insert(canonical.clone()) {
+                include_columns.push(canonical);
+            }
         }
     }
 
     let mut key_columns = Vec::new();
     let mut key_labels = Vec::new();
     for key in parsed.key {
-        if let Some((bytes, label)) = parse_key_entry(&key) {
+        if let Some((bytes, label)) = parse_key_entry(&key, column_aliases.as_ref()) {
             key_columns.push(bytes);
             key_labels.push(label);
         }
@@ -95,6 +128,10 @@ pub fn load_profile_from_path(path: &Path) -> Result<ResolvedProfile, ResolveErr
         key_labels,
         profile_id: parsed.profile_id,
         profile_sha256: parsed.profile_sha256,
+        column_registry,
+        source_path: path.to_path_buf(),
+        resolved_registry_path,
+        column_aliases,
     })
 }
 
@@ -123,6 +160,11 @@ pub fn render_profile_yaml(profile: &ResolvedProfile) -> String {
     if let Some(profile_sha256) = profile.profile_sha256.as_deref() {
         out.push_str("profile_sha256: ");
         out.push_str(profile_sha256);
+        out.push('\n');
+    }
+    if let Some(column_registry) = profile.column_registry.as_deref() {
+        out.push_str("column_registry: ");
+        out.push_str(column_registry);
         out.push('\n');
     }
     out.push_str("include_columns:\n");
@@ -172,6 +214,11 @@ fn parse_profile_yaml(raw: &str) -> Result<RawProfile, String> {
         }
         if let Some(rest) = line.strip_prefix("profile_sha256:") {
             parsed.profile_sha256 = parse_scalar(rest.trim());
+            index += 1;
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("column_registry:") {
+            parsed.column_registry = parse_scalar(rest.trim());
             index += 1;
             continue;
         }
@@ -245,14 +292,85 @@ fn parse_scalar(raw: &str) -> Option<String> {
     Some(value.to_string())
 }
 
+fn resolve_registry_path(anchor_path: &Path, registry_ref: &str) -> PathBuf {
+    let registry_path = Path::new(registry_ref);
+    if registry_path.is_absolute() {
+        registry_path.to_path_buf()
+    } else {
+        anchor_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(registry_path)
+    }
+}
+
+fn load_column_registry_aliases(registry_dir: &Path) -> Result<HashMap<Vec<u8>, Vec<u8>>, String> {
+    if !registry_dir.exists() || !registry_dir.is_dir() {
+        return Err(format!(
+            "registry directory not found: {}",
+            registry_dir.display()
+        ));
+    }
+
+    let registry_json_path = registry_dir.join("registry.json");
+    let registry_json = fs::read_to_string(&registry_json_path)
+        .map_err(|error| format!("{}: {error}", registry_json_path.display()))?;
+    serde_json::from_str::<serde_json::Value>(&registry_json).map_err(|error| {
+        format!(
+            "failed to parse registry definition '{}': {error}",
+            registry_json_path.display()
+        )
+    })?;
+
+    let mut mapping_paths = fs::read_dir(registry_dir)
+        .map_err(|error| format!("{}: {error}", registry_dir.display()))?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            path.is_file()
+                && path.extension().is_some_and(|ext| ext == "json")
+                && path.file_name() != Some("registry.json".as_ref())
+                && path.file_name() != Some("_build.json".as_ref())
+        })
+        .collect::<Vec<_>>();
+    mapping_paths.sort();
+
+    let mut aliases = HashMap::new();
+    for path in mapping_paths {
+        let content =
+            fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let entries: Vec<MappingEntry> = serde_json::from_str(&content).map_err(|error| {
+            format!("failed to parse mapping file '{}': {error}", path.display())
+        })?;
+
+        for (index, entry) in entries.into_iter().enumerate() {
+            if entry.input.trim().is_empty()
+                || entry.canonical_id.trim().is_empty()
+                || entry.canonical_type.trim().is_empty()
+                || entry.rule_id.trim().is_empty()
+            {
+                return Err(format!(
+                    "invalid mapping entry {index} in '{}': missing required fields",
+                    path.display()
+                ));
+            }
+
+            if entry.canonical_type == COLUMN_NAME_CANONICAL_TYPE {
+                aliases
+                    .entry(entry.input.into_bytes())
+                    .or_insert(entry.canonical_id.into_bytes());
+            }
+        }
+    }
+
+    Ok(aliases)
+}
+
 fn strip_comment(raw: &str) -> &str {
     raw.split('#').next().unwrap_or(raw)
 }
 
 /// Parse a column identifier as plain UTF-8 bytes with ASCII trimming.
 ///
-/// Shape does not support u8:/hex: prefix parsing (unlike rvl) because shape
-/// only works with header names, not cell byte values.
 fn parse_column_identifier(raw: &str) -> Option<Vec<u8>> {
     let trimmed = ascii_trim(raw.as_bytes());
     if trimmed.is_empty() {
@@ -262,14 +380,18 @@ fn parse_column_identifier(raw: &str) -> Option<Vec<u8>> {
     }
 }
 
-fn parse_key_entry(raw: &str) -> Option<(Vec<u8>, String)> {
-    let trimmed = ascii_trim(raw.as_bytes());
-    if trimmed.is_empty() {
+fn parse_key_entry(
+    raw: &str,
+    aliases: Option<&HashMap<Vec<u8>, Vec<u8>>>,
+) -> Option<(Vec<u8>, String)> {
+    let bytes = parse_column_identifier(raw)?;
+    let canonical = canonicalize_header_identifier(&bytes, aliases);
+    if canonical.is_empty() {
         return None;
     }
 
-    let label = String::from_utf8_lossy(trimmed).to_string();
-    Some((trimmed.to_vec(), label))
+    let label = String::from_utf8_lossy(&canonical).to_string();
+    Some((canonical, label))
 }
 
 fn is_frozen_with_id(profile: &ResolvedProfile, selector: &str) -> bool {
@@ -321,6 +443,37 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("shape_test_profile_{id}_{seq}"));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    fn write_registry_fixture(dir: &Path) -> PathBuf {
+        let registry_dir = dir.join("registry");
+        std::fs::create_dir_all(&registry_dir).unwrap();
+        std::fs::write(
+            registry_dir.join("registry.json"),
+            r#"{"id":"annex-columns-v0","version":"1.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            registry_dir.join("aliases.json"),
+            r#"
+[
+  {
+    "input": "Loan Number",
+    "canonical_id": "loan_id_number",
+    "canonical_type": "column_name",
+    "rule_id": "ANNEX_COLUMN_ALIAS"
+  },
+  {
+    "input": "Current Balance",
+    "canonical_id": "current_balance",
+    "canonical_type": "column_name",
+    "rule_id": "ANNEX_COLUMN_ALIAS"
+  }
+]
+"#,
+        )
+        .unwrap();
+        registry_dir
     }
 
     // 1. loads_draft_profile_from_path
@@ -562,6 +715,64 @@ include_columns:
         std::fs::remove_dir_all(dir).ok();
     }
 
+    #[test]
+    fn loads_profile_with_column_registry_and_canonicalizes_columns() {
+        let dir = temp_dir();
+        let registry_dir = write_registry_fixture(&dir);
+        let path = dir.join("registry_profile.yaml");
+        std::fs::write(
+            &path,
+            r#"
+profile_id: loan-tape.v0
+profile_sha256: sha256:test
+column_registry: registry
+include_columns:
+  - Loan Number
+  - Current Balance
+  - Current Balance
+key:
+  - Loan Number
+"#,
+        )
+        .unwrap();
+
+        let profile = load_profile_from_path(&path).expect("profile should load");
+        assert_eq!(profile.profile_id.as_deref(), Some("loan-tape.v0"));
+        assert_eq!(profile.profile_sha256.as_deref(), Some("sha256:test"));
+        assert_eq!(profile.column_registry.as_deref(), Some("registry"));
+        assert_eq!(profile.source_path, path);
+        assert_eq!(profile.resolved_registry_path, Some(registry_dir));
+        assert_eq!(
+            profile.include_columns,
+            vec![b"loan_id_number".to_vec(), b"current_balance".to_vec()]
+        );
+        assert_eq!(profile.key_columns, vec![b"loan_id_number".to_vec()]);
+        assert_eq!(profile.key_labels, vec!["loan_id_number".to_string()]);
+        assert!(profile.column_aliases.is_some());
+
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn invalid_column_registry_returns_invalid_error() {
+        let dir = temp_dir();
+        let path = dir.join("bad_registry.yaml");
+        std::fs::write(
+            &path,
+            "column_registry: missing\ninclude_columns: [loan_id]\n",
+        )
+        .unwrap();
+
+        let err = load_profile_from_path(&path).expect_err("missing registry should fail");
+        let error = match err {
+            ResolveError::Invalid { error, .. } => error,
+            ResolveError::NotFound { .. } => String::new(),
+        };
+        assert!(error.contains("registry directory not found"));
+
+        std::fs::remove_dir_all(dir).ok();
+    }
+
     // 10. invalid_path_returns_error
     #[test]
     fn invalid_path_returns_error() {
@@ -602,6 +813,10 @@ include_columns:
             key_labels: vec![],
             profile_id: None,
             profile_sha256: None,
+            column_registry: None,
+            source_path: PathBuf::new(),
+            resolved_registry_path: None,
+            column_aliases: None,
         };
         let set = profile.include_set();
         assert_eq!(set.len(), 2);
@@ -619,6 +834,10 @@ include_columns:
             key_labels: vec!["loan_id".to_string(), "as_of_date".to_string()],
             profile_id: Some("csv.demo.v0".to_string()),
             profile_sha256: Some("sha256:abc123".to_string()),
+            column_registry: None,
+            source_path: path.clone(),
+            resolved_registry_path: None,
+            column_aliases: None,
         };
         std::fs::write(&path, render_profile_yaml(&profile)).unwrap();
 
@@ -628,6 +847,7 @@ include_columns:
         assert_eq!(loaded.key_labels, profile.key_labels);
         assert_eq!(loaded.profile_id, profile.profile_id);
         assert_eq!(loaded.profile_sha256, profile.profile_sha256);
+        assert_eq!(loaded.column_registry, profile.column_registry);
 
         std::fs::remove_dir_all(dir).ok();
     }

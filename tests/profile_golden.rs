@@ -7,14 +7,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-use helpers::{fixture_path, run_shape_with_fixtures};
+use helpers::{fixture_path, run_shape, run_shape_with_fixtures};
 
 const BASIC_OLD: &str = "basic_old.csv";
 const BASIC_NEW: &str = "basic_new.csv";
 const RENT_ROLL_OLD: &str = "rent_roll_old.csv";
 const RENT_ROLL_NEW: &str = "rent_roll_new.csv";
+const ANNEX_OLD: &str = "annex_old.csv";
+const ANNEX_NEW: &str = "annex_new.csv";
 const PROFILE_LOAN_TAPE: &str = "profile_loan_tape.yaml";
 const PROFILE_RENT_ROLL: &str = "profile_rent_roll.yaml";
+const PROFILE_ANNEX_REGISTRY: &str = "profile_annex_registry.yaml";
 #[allow(dead_code)]
 const PROFILE_DRAFT: &str = "profile_draft.yaml";
 
@@ -257,7 +260,198 @@ fn profile_with_redacted_default() {
 }
 
 // ---------------------------------------------------------------------------
-// 6. capsule_replay_records_profile_arg_but_replays_from_local_artifact
+// 6. golden_json_profile_column_registry_support
+// ---------------------------------------------------------------------------
+
+#[test]
+fn golden_json_profile_column_registry_support() {
+    let (old, new) = (fixture_path(ANNEX_OLD), fixture_path(ANNEX_NEW));
+    let profile = profile_arg(PROFILE_ANNEX_REGISTRY);
+    let result = run_shape_with_fixtures(ANNEX_OLD, ANNEX_NEW, &["--json", "--profile", &profile]);
+
+    assert_eq!(result.status, 0);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "unexpected stderr: {}",
+        result.stderr
+    );
+
+    let expected = json!({
+        "version": "shape.v0",
+        "outcome": "COMPATIBLE",
+        "profile_id": "annex-columns.v0",
+        "profile_sha256": "sha256:test-annex-columns",
+        "input_verification": null,
+        "files": {
+            "old": old.to_string_lossy(),
+            "new": new.to_string_lossy(),
+        },
+        "dialect": {
+            "old": {"delimiter": ",", "quote": "\"", "escape": "none"},
+            "new": {"delimiter": ",", "quote": "\"", "escape": "none"},
+        },
+        "checks": {
+            "schema_overlap": {
+                "status": "pass",
+                "columns_common": 3,
+                "columns_old_only": [],
+                "columns_new_only": [],
+                "overlap_ratio": 1.0
+            },
+            "key_viability": {
+                "status": "pass",
+                "key_column": "u8:loan_id_number",
+                "found_old": true,
+                "found_new": true,
+                "unique_old": true,
+                "unique_new": true,
+                "coverage": 1.0
+            },
+            "row_granularity": {
+                "status": "pass",
+                "rows_old": 2,
+                "rows_new": 2,
+                "key_overlap": 2,
+                "keys_old_only": 0,
+                "keys_new_only": 0
+            },
+            "type_consistency": {
+                "status": "pass",
+                "numeric_columns": 2,
+                "type_shifts": []
+            }
+        },
+        "reasons": [],
+        "refusal": null
+    });
+
+    assert_eq!(parse_json_output(&result.stdout), expected);
+}
+
+// ---------------------------------------------------------------------------
+// 7. profile_column_registry_collision_refuses
+// ---------------------------------------------------------------------------
+
+#[test]
+fn profile_column_registry_canonicalizes_cli_key_flag() {
+    let workspace = unique_capsule_dir("profile-cli-key");
+    let profile_path = workspace.join("profile.yaml");
+    fs::create_dir_all(&workspace).expect("create workspace");
+    fs::write(
+        &profile_path,
+        format!(
+            "profile_id: annex-columns.v0\nprofile_sha256: sha256:test-annex-columns\ncolumn_registry: {}\ninclude_columns:\n  - loan_id_number\n  - current_balance\n  - note_rate\n",
+            fixture_path("registries/annex_columns_v0").to_string_lossy()
+        ),
+    )
+    .expect("write profile");
+
+    let result = run_shape_with_fixtures(
+        ANNEX_OLD,
+        ANNEX_NEW,
+        &[
+            "--json",
+            "--profile",
+            &profile_path.to_string_lossy(),
+            "--key",
+            "loan_id_number",
+        ],
+    );
+
+    assert_eq!(result.status, 0);
+    let payload = parse_json_output(&result.stdout);
+    assert_eq!(payload["outcome"], "COMPATIBLE");
+    assert_eq!(
+        payload["checks"]["key_viability"]["key_column"],
+        "u8:loan_id_number"
+    );
+    assert_eq!(payload["checks"]["key_viability"]["found_old"], true);
+    assert_eq!(payload["checks"]["key_viability"]["found_new"], true);
+
+    let _ = fs::remove_dir_all(workspace);
+}
+
+// ---------------------------------------------------------------------------
+// 8. profile_column_registry_collision_refuses
+// ---------------------------------------------------------------------------
+
+#[test]
+fn profile_column_registry_collision_refuses() {
+    let workspace = unique_capsule_dir("profile-collision");
+    let registry_dir = workspace.join("registries").join("annex_columns_v0");
+    fs::create_dir_all(&registry_dir).expect("create registry dir");
+    fs::write(
+        registry_dir.join("registry.json"),
+        r#"{"id":"annex-columns-v0","version":"1.0.0"}"#,
+    )
+    .expect("write registry");
+    fs::write(
+        registry_dir.join("aliases.json"),
+        r#"
+[
+  {
+    "input": "Loan Number",
+    "canonical_id": "loan_id_number",
+    "canonical_type": "column_name",
+    "rule_id": "ANNEX_COLUMN_ALIAS"
+  },
+  {
+    "input": "Loan ID Number",
+    "canonical_id": "loan_id_number",
+    "canonical_type": "column_name",
+    "rule_id": "ANNEX_COLUMN_ALIAS"
+  }
+]
+"#,
+    )
+    .expect("write aliases");
+    fs::write(
+        workspace.join("old.csv"),
+        "Loan Number,Loan ID Number\nA1,A1\nA2,A2\n",
+    )
+    .expect("write old");
+    fs::write(workspace.join("new.csv"), "Loan ID Number\nA1\nA2\n").expect("write new");
+    fs::write(
+        workspace.join("profile.yaml"),
+        "profile_id: annex-columns.v0\nprofile_sha256: sha256:test-annex-columns\ncolumn_registry: registries/annex_columns_v0\ninclude_columns:\n  - loan_id_number\nkey:\n  - loan_id_number\n",
+    )
+    .expect("write profile");
+
+    let old = workspace.join("old.csv").to_string_lossy().into_owned();
+    let new = workspace.join("new.csv").to_string_lossy().into_owned();
+    let profile = workspace
+        .join("profile.yaml")
+        .to_string_lossy()
+        .into_owned();
+    let result = run_shape([
+        old.as_str(),
+        new.as_str(),
+        "--delimiter",
+        "comma",
+        "--json",
+        "--profile",
+        profile.as_str(),
+    ]);
+
+    assert_eq!(result.status, 2);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "refusal in --json mode should stay on stdout: {}",
+        result.stderr
+    );
+
+    let payload = parse_json_output(&result.stdout);
+    assert_eq!(payload["outcome"], "REFUSAL");
+    assert_eq!(payload["refusal"]["code"], "E_HEADERS");
+    assert_eq!(payload["refusal"]["detail"]["issue"], "duplicate");
+    assert_eq!(payload["refusal"]["detail"]["name"], "u8:loan_id_number");
+    assert_eq!(payload["refusal"]["detail"]["file"], old);
+
+    let _ = fs::remove_dir_all(workspace);
+}
+
+// ---------------------------------------------------------------------------
+// 9. capsule_replay_records_profile_arg_but_replays_from_local_artifact
 // ---------------------------------------------------------------------------
 
 fn unique_capsule_dir(label: &str) -> PathBuf {
@@ -347,6 +541,78 @@ fn capsule_replay_records_profile_arg_but_replays_from_local_artifact() {
         replay_shell.contains("profile.yaml"),
         "replay shell command should use the local profile artifact: {replay_shell}"
     );
+
+    let _ = fs::remove_dir_all(capsule_dir);
+}
+
+// ---------------------------------------------------------------------------
+// 10. capsule_replay_with_column_registry_uses_local_registry_artifact
+// ---------------------------------------------------------------------------
+
+#[test]
+fn capsule_replay_with_column_registry_uses_local_registry_artifact() {
+    let capsule_dir = unique_capsule_dir("profile-registry-replay");
+    let profile = profile_arg(PROFILE_ANNEX_REGISTRY);
+    let result = run_shape_with_fixtures(
+        ANNEX_OLD,
+        ANNEX_NEW,
+        &[
+            "--json",
+            "--no-witness",
+            "--capsule-dir",
+            &capsule_dir.to_string_lossy(),
+            "--profile",
+            &profile,
+        ],
+    );
+
+    assert_eq!(result.status, 0);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "unexpected stderr: {}",
+        result.stderr
+    );
+
+    let manifest_text = fs::read_to_string(capsule_dir.join("manifest.json"))
+        .expect("capsule manifest should be written");
+    let manifest: Value =
+        serde_json::from_str(&manifest_text).expect("capsule manifest should parse");
+    assert!(capsule_dir.join("profile.yaml").is_file());
+    assert!(
+        capsule_dir
+            .join("column_registry")
+            .join("registry.json")
+            .is_file()
+    );
+    assert!(
+        capsule_dir
+            .join("column_registry")
+            .join("aliases.json")
+            .is_file()
+    );
+
+    let profile_artifact = fs::read_to_string(capsule_dir.join("profile.yaml"))
+        .expect("profile artifact should exist");
+    assert!(profile_artifact.contains("column_registry: column_registry"));
+
+    let replay_argv = manifest["replay"]["argv"]
+        .as_array()
+        .expect("replay argv should be array")
+        .iter()
+        .map(|value| value.as_str().expect("argv element should be string"))
+        .collect::<Vec<_>>();
+    assert!(replay_argv.contains(&"--profile"));
+    assert!(replay_argv.contains(&"profile.yaml"));
+    let replay = std::process::Command::new(env!("CARGO_BIN_EXE_shape"))
+        .args(replay_argv.iter().skip(1))
+        .current_dir(&capsule_dir)
+        .env(
+            "EPISTEMIC_WITNESS",
+            std::env::temp_dir().join("shape-profile-registry-replay-witness.jsonl"),
+        )
+        .output()
+        .expect("replay shape invocation should run");
+    assert_eq!(replay.status.code(), Some(0));
 
     let _ = fs::remove_dir_all(capsule_dir);
 }

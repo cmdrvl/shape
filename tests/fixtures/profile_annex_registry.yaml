@@ -1,0 +1,9 @@
+profile_id: annex-columns.v0
+profile_sha256: sha256:test-annex-columns
+column_registry: registries/annex_columns_v0
+include_columns:
+  - loan_id_number
+  - current_balance
+  - note_rate
+key:
+  - loan_id_number

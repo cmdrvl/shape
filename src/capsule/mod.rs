@@ -18,6 +18,7 @@ const OLD_ARTIFACT_PATH: &str = "inputs/old.csv";
 const NEW_ARTIFACT_PATH: &str = "inputs/new.csv";
 const OUTPUT_ARTIFACT_PATH: &str = "outputs/report.txt";
 const PROFILE_ARTIFACT_PATH: &str = "profile.yaml";
+const PROFILE_REGISTRY_ARTIFACT_PATH: &str = "column_registry";
 
 #[derive(Debug, Serialize)]
 struct CapsuleManifest {
@@ -115,11 +116,10 @@ pub fn write_run_capsule(
         write_output_artifact(capsule_dir, output)?,
     ];
     if let Some(profile) = resolved_profile {
-        artifacts.push(write_profile_artifact(
-            capsule_dir,
-            profile,
-            args.profile.as_deref(),
-        )?);
+        if profile.resolved_registry_path.is_some() {
+            artifacts.push(write_profile_registry_artifact(capsule_dir, profile)?);
+        }
+        artifacts.push(write_profile_artifact(capsule_dir, profile)?);
     }
 
     let replay_argv = build_replay_argv(args, resolved_profile.is_some());
@@ -245,18 +245,52 @@ fn write_output_artifact(
 fn write_profile_artifact(
     capsule_dir: &Path,
     profile: &ResolvedProfile,
-    source_path: Option<&Path>,
 ) -> Result<CapsuleArtifact, std::io::Error> {
     let profile_path = capsule_dir.join(PROFILE_ARTIFACT_PATH);
-    fs::write(&profile_path, render_profile_yaml(profile).as_bytes())?;
+    let mut artifact_profile = profile.clone();
+    if profile.resolved_registry_path.is_some() {
+        artifact_profile.column_registry = Some(PROFILE_REGISTRY_ARTIFACT_PATH.to_owned());
+    }
+    fs::write(
+        &profile_path,
+        render_profile_yaml(&artifact_profile).as_bytes(),
+    )?;
 
     let bytes = fs::read(&profile_path)?;
     Ok(CapsuleArtifact {
         name: "profile",
         path: PROFILE_ARTIFACT_PATH,
-        source_path: source_path.map(path_to_string),
+        source_path: Some(path_to_string(profile.source_path.as_path())),
         bytes: Some(bytes.len() as u64),
         blake3: Some(format!("blake3:{}", hash_bytes(&bytes))),
+        source_error: None,
+    })
+}
+
+fn write_profile_registry_artifact(
+    capsule_dir: &Path,
+    profile: &ResolvedProfile,
+) -> Result<CapsuleArtifact, std::io::Error> {
+    let Some(source_path) = profile.resolved_registry_path.as_ref() else {
+        return Ok(CapsuleArtifact {
+            name: "profile_column_registry",
+            path: PROFILE_REGISTRY_ARTIFACT_PATH,
+            source_path: None,
+            bytes: None,
+            blake3: None,
+            source_error: Some("missing resolved registry path".to_owned()),
+        });
+    };
+
+    let destination = capsule_dir.join(PROFILE_REGISTRY_ARTIFACT_PATH);
+    let bytes = copy_directory_recursive(source_path, &destination)?;
+
+    Ok(CapsuleArtifact {
+        name: "profile_column_registry",
+        path: PROFILE_REGISTRY_ARTIFACT_PATH,
+        source_path: Some(path_to_string(source_path.as_path())),
+        bytes: Some(bytes),
+        blake3: None,
         source_error: None,
     })
 }
@@ -267,6 +301,25 @@ fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
+}
+
+fn copy_directory_recursive(source: &Path, destination: &Path) -> Result<u64, std::io::Error> {
+    fs::create_dir_all(destination)?;
+
+    let mut total_bytes = 0u64;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+
+        if entry.file_type()?.is_dir() {
+            total_bytes += copy_directory_recursive(&source_path, &destination_path)?;
+        } else {
+            total_bytes += fs::copy(&source_path, &destination_path)?;
+        }
+    }
+
+    Ok(total_bytes)
 }
 
 fn build_replay_argv(args: &Args, use_local_profile: bool) -> Vec<String> {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::capsule;
@@ -9,7 +9,9 @@ use crate::cli::args::Args;
 use crate::cli::delimiter::parse_delimiter;
 use crate::csv::dialect::Dialect;
 use crate::csv::input::{ParsedInput, parse_input_file_with_context};
-use crate::normalize::headers::ascii_trim;
+use crate::normalize::headers::{
+    ascii_trim, canonicalize_header_identifier, canonicalize_headers_or_refusal,
+};
 use crate::output::human::{self, RefusalRenderContext};
 use crate::output::json::{self, JsonRenderContext};
 use crate::profile::{self, ResolvedProfile};
@@ -153,7 +155,6 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         .as_ref()
         .and_then(|p| p.profile_sha256.clone());
 
-    let include_set = resolved_profile.as_ref().map(|p| p.include_set());
     let profile_key_columns: Vec<Vec<u8>> = resolved_profile
         .as_ref()
         .map(|p| p.key_columns.clone())
@@ -166,8 +167,7 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         old_path,
         new_path,
         forced_delimiter,
-        include_set.as_ref(),
-        &profile_key_columns,
+        resolved_profile.as_ref(),
     ) {
         Ok(result) => result,
         Err(refusal) => {
@@ -227,11 +227,14 @@ fn execute_pipeline(
     old_path: &Path,
     new_path: &Path,
     forced_delimiter: Option<u8>,
-    include_set: Option<&HashSet<Vec<u8>>>,
-    profile_key_columns: &[Vec<u8>],
+    resolved_profile: Option<&ResolvedProfile>,
 ) -> Result<PipelineDomainResult, PipelineRefusal> {
     let old_file = old_path.to_string_lossy().into_owned();
     let new_file = new_path.to_string_lossy().into_owned();
+    let include_set = resolved_profile.map(|profile| profile.include_set());
+    let profile_key_columns: Vec<Vec<u8>> = resolved_profile
+        .map(|profile| profile.key_columns.clone())
+        .unwrap_or_default();
 
     let old_input = parse_input_file_with_context(old_path, forced_delimiter, &old_file, &new_file)
         .map_err(|err| PipelineRefusal {
@@ -253,26 +256,43 @@ fn execute_pipeline(
         dialect_new: Some(new_input.dialect),
     })?;
 
+    let old_effective_headers =
+        effective_headers_for_input(&old_file, &old_input.headers, resolved_profile).map_err(
+            |refusal| PipelineRefusal {
+                refusal,
+                dialect_old: Some(old_input.dialect),
+                dialect_new: Some(new_input.dialect),
+            },
+        )?;
+    let new_effective_headers =
+        effective_headers_for_input(&new_file, &new_input.headers, resolved_profile).map_err(
+            |refusal| PipelineRefusal {
+                refusal,
+                dialect_old: Some(old_input.dialect),
+                dialect_new: Some(new_input.dialect),
+            },
+        )?;
+
     let common_columns = {
         let schema = crate::checks::schema_overlap::evaluate_schema_overlap(
-            &old_input.headers,
-            &new_input.headers,
-            include_set,
+            &old_effective_headers,
+            &new_effective_headers,
+            include_set.as_ref(),
         );
         schema.columns_common
     };
-    let old_header_indices = header_index_map(&old_input.headers);
-    let new_header_indices = header_index_map(&new_input.headers);
+    let old_header_indices = header_index_map(&old_effective_headers);
+    let new_header_indices = header_index_map(&new_effective_headers);
     let old_common_indices = common_column_indices(&common_columns, &old_header_indices);
     let new_common_indices = common_column_indices(&common_columns, &new_header_indices);
 
     // Resolve key columns: profile keys take precedence over --key flag.
     let key_columns: Vec<Vec<u8>> = if !profile_key_columns.is_empty() {
-        profile_key_columns.to_vec()
+        profile_key_columns
     } else {
         args.key
             .as_ref()
-            .map(|column| vec![ascii_trim(column.as_bytes()).to_vec()])
+            .map(|column| vec![canonicalize_cli_key(column, resolved_profile)])
             .unwrap_or_default()
     };
 
@@ -330,14 +350,14 @@ fn execute_pipeline(
     )?;
 
     let suite = assemble_check_suite(
-        &old_input.headers,
-        &new_input.headers,
+        &old_effective_headers,
+        &new_effective_headers,
         key_columns,
         keys_found_old,
         keys_found_new,
         &old_scan,
         &new_scan,
-        include_set,
+        include_set.as_ref(),
     );
     let reasons = build_reasons(&suite);
     let outcome = determine_outcome(&suite);
@@ -349,6 +369,25 @@ fn execute_pipeline(
         reasons,
         outcome,
     })
+}
+
+fn canonicalize_cli_key(key: &str, resolved_profile: Option<&ResolvedProfile>) -> Vec<u8> {
+    canonicalize_header_identifier(
+        ascii_trim(key.as_bytes()),
+        resolved_profile.and_then(|profile| profile.column_aliases.as_ref()),
+    )
+}
+
+fn effective_headers_for_input(
+    file: &str,
+    headers: &[Vec<u8>],
+    resolved_profile: Option<&ResolvedProfile>,
+) -> Result<Vec<Vec<u8>>, RefusalPayload> {
+    canonicalize_headers_or_refusal(
+        file,
+        headers,
+        resolved_profile.and_then(|profile| profile.column_aliases.as_ref()),
+    )
 }
 
 fn render_domain_output(
@@ -533,7 +572,6 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
-            &[],
         )
         .expect_err("missing old file should fail fast");
 
@@ -558,7 +596,6 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
-            &[],
         )
         .expect_err("duplicate headers in new file should refuse");
 
@@ -588,7 +625,6 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
-            &[],
         )
         .expect("pipeline should succeed");
 
@@ -615,7 +651,6 @@ mod tests {
             new_file.path.as_path(),
             None,
             None,
-            &[],
         )
         .expect("pipeline should succeed");
 

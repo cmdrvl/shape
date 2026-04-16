@@ -82,9 +82,9 @@ shape witness <query|last|count> [OPTIONS]
 
 ### Flags (v0.1 — epistemic spine extensions)
 
-These are deferred until the respective spine tools exist, but the CLI shape is defined now:
+Profile scoping is live. Lock and size gates remain deferred until the respective spine tools exist:
 
-- `--profile <path>`: scope checks to columns in this profile's `include_columns`
+- `--profile <path>`: scope checks to columns in this profile's `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching.
 - `--profile-id <id>`: profile ID (resolved from search path). Mutually exclusive with `--profile`
 - `--lock <lockfile>`: verify inputs are members of these lockfiles (repeatable)
 - `--max-rows <n>`: refuse if input exceeds N rows (default: unlimited)
@@ -172,7 +172,7 @@ No other outcomes.
 
 **Pass condition:** `overlap_ratio > 0` (at least 1 common column)
 
-**When a profile is provided:** overlap is measured only against the profile's `include_columns`. Columns outside the profile are ignored.
+**When a profile is provided:** overlap is measured only against the profile's `include_columns`. Columns outside the profile are ignored. If the profile carries `column_registry`, raw dataset headers are canonicalized to those column IDs before overlap is computed.
 
 **Output fields:**
 
@@ -190,7 +190,7 @@ No other outcomes.
 
 **Implementation:**
 1. Only checked when `--key` is provided. If no `--key`, this check is null in JSON and omitted in human output.
-2. Verify the key column exists in both files' headers (after normalization). If not found → the check **fails** (status `"fail"`) with a reason like `"Key viability: loan_id not found in new file"`. This is INCOMPATIBLE, not a refusal — the files parsed fine, the key just doesn't exist.
+2. Verify the key column exists in both files' headers (after normalization, and after `column_registry` canonicalization when a registry-backed profile is active). If not found → the check **fails** (status `"fail"`) with a reason like `"Key viability: loan_id not found in new file"`. This is INCOMPATIBLE, not a refusal — the files parsed fine, the key just doesn't exist.
 3. Scan all rows in both files (part of the single-pass scan)
 4. Check: key values are non-empty (after ASCII-trim) and unique within each file
 5. Compute coverage: `key_overlap / max(keys_old, keys_new)`. If both key sets are empty, coverage = 0.0.
@@ -1286,7 +1286,7 @@ Provide basic test fixtures in `tests/fixtures/`:
 
 ### Test categories
 
-- **Schema overlap tests:** matching columns, partial overlap, zero overlap (profile-scoped overlap deferred until profile tool exists)
+- **Schema overlap tests:** matching columns, partial overlap, zero overlap, profile-scoped overlap, registry-backed canonical overlap
 - **Key viability tests:** unique keys, duplicate keys, empty keys, missing key column
 - **Row granularity tests:** same row count, different row count, key overlap
 - **Type consistency tests:** consistent types, type shifts, all-missing columns
@@ -1308,6 +1308,7 @@ Provide basic test fixtures in `tests/fixtures/`:
 - ambient witness recording (default on) + `--no-witness`
 - `shape witness <query|last|count>` subcommands
 - `--version` flag (prints `shape <semver>`)
+- `--profile` / `--profile-id` profile scoping
 - COMPATIBLE / INCOMPATIBLE outcome with four checks
 - Exit codes 0/1/2
 - Refusal system with `E_IO`, `E_ENCODING`, `E_CSV_PARSE`, `E_EMPTY`, `E_HEADERS`, `E_DIALECT`
@@ -1316,7 +1317,6 @@ Provide basic test fixtures in `tests/fixtures/`:
 
 ### Can defer
 
-- `--profile` / `--profile-id` (needs profile tool)
 - `--lock` input verification (needs lock tool)
 - `--max-rows` / `--max-bytes` guardrails
 - `--schema` flag (JSON Schema output)

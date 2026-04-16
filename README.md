@@ -150,6 +150,7 @@ Measures how many columns are shared between the two files.
 
 - **Pass condition:** at least 1 common column (`overlap_ratio > 0`)
 - Reports: `columns_common`, `columns_old_only`, `columns_new_only`, `overlap_ratio`
+- With a registry-backed profile, raw dataset headers are resolved to canonical column IDs before overlap is computed.
 
 ### Key Viability
 
@@ -158,6 +159,7 @@ Checks whether the key column is suitable for row alignment.
 - **Pass condition:** key is unique in both files with no nulls
 - Only checked when `--key` is provided
 - Reports: `key_column`, `unique_old`, `unique_new`, `coverage`
+- When a registry-backed profile is active, both profile keys and the CLI `--key` value resolve against canonical column IDs before header lookup.
 
 ### Row Granularity
 
@@ -246,6 +248,8 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
 | `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
+| `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
+| `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from the search path. Mutually exclusive with `--profile`. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
 
 <details>
@@ -253,8 +257,6 @@ shape <old.csv> <new.csv> [OPTIONS]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--profile <path>` | path | *(none)* | Profile for check scoping. |
-| `--profile-id <id>` | string | *(none)* | Echoed as `profile_id` in JSON output. |
 | `--lock <lockfile>` | path | *(none)* | Lock verification for inputs. |
 | `--max-rows <n>` | integer | *(unlimited)* | Row-limit refusal. |
 | `--max-bytes <n>` | integer | *(unlimited)* | Byte-limit refusal. |
@@ -297,6 +299,7 @@ capsules/run-001/
   inputs/new.csv
   outputs/report.txt
   profile.yaml   # when a profile is active
+  column_registry/   # when the profile carries column_registry
 ```
 
 Replay from the capsule directory:
@@ -306,7 +309,7 @@ cd capsules/run-001
 shape inputs/old.csv inputs/new.csv --key loan_id --json --no-witness
 ```
 
-`manifest.json` also stores replay args and a shell command under `replay.argv` and `replay.shell`. When `--profile` or `--profile-id` is active, replay uses the capsule-local `profile.yaml` artifact so the handoff stays self-contained.
+`manifest.json` also stores replay args and a shell command under `replay.argv` and `replay.shell`. When `--profile` or `--profile-id` is active, replay uses the capsule-local `profile.yaml` artifact so the handoff stays self-contained. If the profile carries `column_registry`, the capsule also includes a local `column_registry/` copy and rewrites `profile.yaml` to point at it.
 
 ---
 
@@ -492,7 +495,7 @@ A cell in the new file has a value that can't be parsed as a number (e.g., `#REF
 | **Structural only** | shape checks whether comparison is *possible*, not what changed. Use `rvl` for content diffs. |
 | **Two files only** | No multi-file or directory comparison. |
 | **In-memory** | Both files are loaded fully into memory. No streaming mode yet. |
-| **No column filtering** | All common columns are checked. You can't exclude specific columns in v0. |
+| **No ad hoc column filtering** | Use `--profile` for deterministic scoped checks; there is no separate include/exclude flag language in `shape`. |
 | **No content sampling** | shape doesn't look at data distributions or outliers — it checks structure only. |
 | **Lock/size gates deferred** | `--lock`, `--max-rows`, and `--max-bytes` are parsed but do not gate runtime behavior in v0. `--profile` and `--profile-id` do affect check scoping. |
 

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::format::ident::encode_identifier;
 use crate::refusal::payload::RefusalPayload;
@@ -45,6 +45,34 @@ pub fn normalize_headers(
     Ok(normalized)
 }
 
+pub fn canonicalize_header_identifier(
+    header: &[u8],
+    aliases: Option<&HashMap<Vec<u8>, Vec<u8>>>,
+) -> Vec<u8> {
+    aliases
+        .and_then(|aliases| aliases.get(header))
+        .cloned()
+        .unwrap_or_else(|| header.to_vec())
+}
+
+pub fn canonicalize_headers(
+    headers: &[Vec<u8>],
+    aliases: Option<&HashMap<Vec<u8>, Vec<u8>>>,
+) -> Result<Vec<Vec<u8>>, HeaderNormalizationError> {
+    let mut seen = HashSet::with_capacity(headers.len());
+    let mut canonical = Vec::with_capacity(headers.len());
+
+    for header in headers {
+        let value = canonicalize_header_identifier(header, aliases);
+        if !seen.insert(value.clone()) {
+            return Err(HeaderNormalizationError::Duplicate(value));
+        }
+        canonical.push(value);
+    }
+
+    Ok(canonical)
+}
+
 /// Normalize headers and map parser-visible failures to `E_HEADERS`.
 pub fn normalize_headers_or_refusal(
     file: &str,
@@ -61,9 +89,26 @@ pub fn normalize_headers_or_refusal(
     })
 }
 
+pub fn canonicalize_headers_or_refusal(
+    file: &str,
+    headers: &[Vec<u8>],
+    aliases: Option<&HashMap<Vec<u8>, Vec<u8>>>,
+) -> Result<Vec<Vec<u8>>, RefusalPayload> {
+    canonicalize_headers(headers, aliases).map_err(|error| match error {
+        HeaderNormalizationError::Duplicate(name) => {
+            RefusalPayload::headers_duplicate(file.to_owned(), encode_identifier(&name))
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ascii_trim, normalize_headers, normalize_headers_or_refusal};
+    use std::collections::HashMap;
+
+    use super::{
+        ascii_trim, canonicalize_header_identifier, canonicalize_headers,
+        canonicalize_headers_or_refusal, normalize_headers, normalize_headers_or_refusal,
+    };
     use crate::normalize::headers::{EMPTY_HEADER_PREFIX, HeaderNormalizationError};
     use crate::refusal::codes::RefusalCode;
 
@@ -126,5 +171,51 @@ mod tests {
         assert_eq!(refusal.detail["file"].as_str(), Some("new.csv"));
         assert_eq!(refusal.detail["issue"].as_str(), Some("duplicate"));
         assert_eq!(refusal.detail["name"].as_str(), Some("u8:amount"));
+    }
+
+    #[test]
+    fn canonicalize_header_identifier_prefers_alias_when_present() {
+        let aliases = HashMap::from([(b"Loan Number".to_vec(), b"loan_id_number".to_vec())]);
+
+        assert_eq!(
+            canonicalize_header_identifier(b"Loan Number", Some(&aliases)),
+            b"loan_id_number"
+        );
+        assert_eq!(
+            canonicalize_header_identifier(b"Current Balance", Some(&aliases)),
+            b"Current Balance"
+        );
+    }
+
+    #[test]
+    fn canonicalize_headers_rejects_duplicates_after_alias_resolution() {
+        let aliases = HashMap::from([
+            (b"Loan Number".to_vec(), b"loan_id_number".to_vec()),
+            (b"Loan ID Number".to_vec(), b"loan_id_number".to_vec()),
+        ]);
+        let headers = vec![b"Loan Number".to_vec(), b"Loan ID Number".to_vec()];
+
+        let error =
+            canonicalize_headers(&headers, Some(&aliases)).expect_err("duplicate should fail");
+        assert_eq!(
+            error,
+            HeaderNormalizationError::Duplicate(b"loan_id_number".to_vec())
+        );
+    }
+
+    #[test]
+    fn canonicalize_headers_or_refusal_maps_duplicate_with_canonical_name() {
+        let aliases = HashMap::from([
+            (b"Loan Number".to_vec(), b"loan_id_number".to_vec()),
+            (b"Loan ID Number".to_vec(), b"loan_id_number".to_vec()),
+        ]);
+        let headers = vec![b"Loan Number".to_vec(), b"Loan ID Number".to_vec()];
+        let refusal = canonicalize_headers_or_refusal("old.csv", &headers, Some(&aliases))
+            .expect_err("canonical collision should refuse");
+
+        assert_eq!(refusal.code, RefusalCode::EHeaders);
+        assert_eq!(refusal.detail["file"].as_str(), Some("old.csv"));
+        assert_eq!(refusal.detail["issue"].as_str(), Some("duplicate"));
+        assert_eq!(refusal.detail["name"].as_str(), Some("u8:loan_id_number"));
     }
 }
