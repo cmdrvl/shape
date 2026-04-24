@@ -30,22 +30,12 @@ If I tell you to do something, even if it goes against what follows below, YOU M
 
 ---
 
-## Git Branch: ONLY Use `main`, NEVER `master`
+## Git Branch: Use `main`
 
-**The default branch is `main`. The `master` branch exists only for legacy URL compatibility.**
+**The default branch is `main`.**
 
 - **All work happens on `main`** — commits, PRs, feature branches all merge to `main`
-- **Never reference `master` in code or docs** — if you see `master` anywhere, it's a bug that needs fixing
-- **The `master` branch must stay synchronized with `main`** — after pushing to `main`, also push to `master`:
-  ```bash
-  git push origin main:master
-  ```
-
-**Why this matters:** install URLs historically referenced `master`. If `master` falls behind `main`, users can install stale code.
-
-**If you see `master` referenced anywhere:**
-1. Update it to `main`
-2. Ensure `master` is synchronized: `git push origin main:master`
+- **Treat lingering `master` references as stale** unless the user explicitly asks about legacy history
 
 ---
 
@@ -209,7 +199,6 @@ The version in `Cargo.toml` determines the release tag. Use semver:
 
 ```bash
 git push origin main
-git push origin main:master  # Keep master in sync
 ```
 
 If release workflows exist, follow their instructions for tags and artifacts. Validate releases with `gh release` once configured.
