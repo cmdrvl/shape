@@ -55,7 +55,7 @@ struct CandidateProbe {
     delimiter: u8,
     escape: EscapeMode,
     score: CandidateScore,
-    sample_signature: Vec<Vec<u8>>,
+    sample_rows: Vec<Vec<u8>>,
 }
 
 /// Auto-detect CSV dialect with PLAN scoring and refusal behavior.
@@ -131,10 +131,10 @@ fn detect_dialect_from_sample(
     };
 
     if tied_best.len() > 1 {
-        let first_signature = &winner.sample_signature;
+        let first_rows = &winner.sample_rows;
         let same_sample = tied_best
             .iter()
-            .all(|candidate| candidate.sample_signature == *first_signature);
+            .all(|candidate| candidate.sample_rows == *first_rows);
         if !same_sample {
             let candidates = tied_best
                 .iter()
@@ -207,7 +207,7 @@ fn probe_with_escape(sample: &[u8], delimiter: u8, escape: EscapeMode) -> Option
     let mut reader = builder.from_reader(sample);
     let mut histogram: BTreeMap<u64, u64> = BTreeMap::new();
     let mut parsed_records = 0u64;
-    let mut sample_signature: Vec<Vec<u8>> = Vec::new();
+    let mut sample_rows: Vec<Vec<u8>> = Vec::new();
 
     for record in reader.byte_records().take(MAX_SAMPLE_RECORDS) {
         let record = match record {
@@ -217,7 +217,7 @@ fn probe_with_escape(sample: &[u8], delimiter: u8, escape: EscapeMode) -> Option
         parsed_records += 1;
         let field_count = record.len() as u64;
         *histogram.entry(field_count).or_insert(0) += 1;
-        sample_signature.push(record_signature(&record));
+        sample_rows.push(record_projection(&record));
     }
 
     if parsed_records == 0 {
@@ -236,19 +236,19 @@ fn probe_with_escape(sample: &[u8], delimiter: u8, escape: EscapeMode) -> Option
             mode_count,
             mode_fields,
         },
-        sample_signature,
+        sample_rows,
     })
 }
 
-fn record_signature(record: &csv::ByteRecord) -> Vec<u8> {
-    let mut signature = Vec::new();
+fn record_projection(record: &csv::ByteRecord) -> Vec<u8> {
+    let mut projection = Vec::new();
     for (index, field) in record.iter().enumerate() {
         if index > 0 {
-            signature.push(0x1f);
+            projection.push(0x1f);
         }
-        signature.extend_from_slice(field);
+        projection.extend_from_slice(field);
     }
-    signature
+    projection
 }
 
 fn hex_byte(byte: u8) -> String {
