@@ -55,8 +55,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install UBS (pinned)
         run: |
-          UBS_URL="https://raw.githubusercontent.com/Dicklesworthstone/ultimate_bug_scanner/af5a03b13c305ef2d9b484fa49421f2a18877355/ubs"
-          UBS_SHA256="3d0f2e8d59362a96253bee83d8e0bfc79ac8a71729442cfca0338bc53782810f"
+          UBS_URL="https://raw.githubusercontent.com/Dicklesworthstone/ultimate_bug_scanner/v5.2.75/ubs"
+          UBS_SHA256="21552ce3bb0c42c4b5e61321a29941e688f033d9a099bf4d79cbb10d6428c2f2"
           curl -fsSL "$UBS_URL" -o /tmp/ubs
           echo "$UBS_SHA256  /tmp/ubs" | sha256sum -c -
           install -m 0755 /tmp/ubs /usr/local/bin/ubs
