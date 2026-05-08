@@ -30,3 +30,6 @@ target
 # Local UBS run artifacts
 .ubs-gate-summary.json
 .ubs-baseline.json
+
+# doctor runtime artifacts
+.doctor/

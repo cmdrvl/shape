@@ -1,7 +1,7 @@
 {
   "schema_version": "operator.v0",
   "name": "shape",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
@@ -11,7 +11,9 @@
     "binary": "shape",
     "usage": [
       "shape <old.csv> <new.csv> [OPTIONS]",
-      "shape witness <query|last|count> [OPTIONS]"
+      "shape witness <query|last|count> [OPTIONS]",
+      "shape doctor <health|capabilities|robot-docs> [OPTIONS]",
+      "shape doctor --robot-triage"
     ],
     "output_mode": "report",
     "output_schema": "shape.v0",
@@ -66,6 +68,39 @@
           "~/.epistemic/witness.jsonl"
         ],
         "json_no_match_stderr_message": "shape: no matching witness records"
+      }
+    },
+    {
+      "name": "doctor",
+      "description": "Read-only diagnostic commands for headless agents",
+      "status": "available",
+      "actions": [
+        {
+          "name": "health",
+          "usage": "shape doctor health"
+        },
+        {
+          "name": "capabilities",
+          "usage": "shape doctor capabilities --json"
+        },
+        {
+          "name": "robot-docs",
+          "usage": "shape doctor robot-docs"
+        },
+        {
+          "name": "robot-triage",
+          "usage": "shape doctor --robot-triage"
+        }
+      ],
+      "current_runtime_behavior": {
+        "read_only": true,
+        "fix_mode": "not_available",
+        "network": "not_used",
+        "success_exit_code": 0,
+        "findings_exit_code": 1,
+        "usage_error_exit_code": 2,
+        "writes_witness": false,
+        "writes_capsules": false
       }
     }
   ],

@@ -9,7 +9,7 @@ use clap::{ArgAction, Parser, Subcommand};
     name = "shape",
     version,
     about = "Structural comparability gate for CSV datasets",
-    override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape witness <query|last|count> [OPTIONS]",
+    override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor <health|capabilities|robot-docs> [OPTIONS]",
     subcommand_negates_reqs = true
 )]
 pub struct Args {
@@ -70,6 +70,35 @@ pub enum ShapeCommand {
         #[command(subcommand)]
         action: WitnessAction,
     },
+    /// Inspect shape's read-only diagnostic surface.
+    Doctor(DoctorArgs),
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct DoctorArgs {
+    /// Emit one-call machine triage for headless agents.
+    #[arg(long = "robot-triage")]
+    pub robot_triage: bool,
+
+    #[command(subcommand)]
+    pub action: Option<DoctorAction>,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum DoctorAction {
+    /// Print a cheap one-line health summary.
+    Health,
+    /// Print the machine-readable doctor capability contract.
+    Capabilities(DoctorCapabilitiesArgs),
+    /// Print paste-ready operating notes for agents.
+    RobotDocs,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct DoctorCapabilitiesArgs {
+    /// Emit JSON output.
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -150,7 +179,7 @@ impl Args {
 mod tests {
     use clap::error::ErrorKind;
 
-    use super::{Args, ShapeCommand, WitnessAction};
+    use super::{Args, DoctorAction, ShapeCommand, WitnessAction};
 
     #[test]
     fn parse_describe_without_positionals() {
@@ -289,24 +318,24 @@ mod tests {
         assert!(args.new.is_none());
 
         let command = args.command.expect("witness command expected");
-        match command {
-            ShapeCommand::Witness { action } => {
-                assert!(
-                    matches!(action, WitnessAction::Query(_)),
-                    "unexpected witness action: {action:?}"
-                );
-                let WitnessAction::Query(query) = action else {
-                    return;
-                };
-                assert_eq!(query.tool.as_deref(), Some("shape"));
-                assert_eq!(query.since.as_deref(), Some("2026-01-01T00:00:00Z"));
-                assert_eq!(query.until.as_deref(), Some("2026-01-02T00:00:00Z"));
-                assert_eq!(query.outcome.as_deref(), Some("COMPATIBLE"));
-                assert_eq!(query.input_hash.as_deref(), Some("abc123"));
-                assert_eq!(query.limit, 5);
-                assert!(query.json);
-            }
-        }
+        assert!(matches!(command, ShapeCommand::Witness { .. }));
+        let ShapeCommand::Witness { action } = command else {
+            return;
+        };
+        assert!(
+            matches!(action, WitnessAction::Query(_)),
+            "unexpected witness action: {action:?}"
+        );
+        let WitnessAction::Query(query) = action else {
+            return;
+        };
+        assert_eq!(query.tool.as_deref(), Some("shape"));
+        assert_eq!(query.since.as_deref(), Some("2026-01-01T00:00:00Z"));
+        assert_eq!(query.until.as_deref(), Some("2026-01-02T00:00:00Z"));
+        assert_eq!(query.outcome.as_deref(), Some("COMPATIBLE"));
+        assert_eq!(query.input_hash.as_deref(), Some("abc123"));
+        assert_eq!(query.limit, 5);
+        assert!(query.json);
     }
 
     #[test]
@@ -318,18 +347,18 @@ mod tests {
         assert!(args.new.is_none());
 
         let command = args.command.expect("witness command expected");
-        match command {
-            ShapeCommand::Witness { action } => {
-                assert!(
-                    matches!(action, WitnessAction::Last(_)),
-                    "unexpected witness action: {action:?}"
-                );
-                let WitnessAction::Last(last) = action else {
-                    return;
-                };
-                assert!(last.json);
-            }
-        }
+        assert!(matches!(command, ShapeCommand::Witness { .. }));
+        let ShapeCommand::Witness { action } = command else {
+            return;
+        };
+        assert!(
+            matches!(action, WitnessAction::Last(_)),
+            "unexpected witness action: {action:?}"
+        );
+        let WitnessAction::Last(last) = action else {
+            return;
+        };
+        assert!(last.json);
     }
 
     #[test]
@@ -353,23 +382,57 @@ mod tests {
         .expect("expected witness count parse success");
 
         let command = args.command.expect("witness command expected");
-        match command {
-            ShapeCommand::Witness { action } => {
-                assert!(
-                    matches!(action, WitnessAction::Count(_)),
-                    "unexpected witness action: {action:?}"
-                );
-                let WitnessAction::Count(count) = action else {
-                    return;
-                };
-                assert_eq!(count.tool.as_deref(), Some("shape"));
-                assert_eq!(count.since.as_deref(), Some("2026-01-01T00:00:00Z"));
-                assert_eq!(count.until.as_deref(), Some("2026-01-02T00:00:00Z"));
-                assert_eq!(count.outcome.as_deref(), Some("INCOMPATIBLE"));
-                assert_eq!(count.input_hash.as_deref(), Some("feedbeef"));
-                assert!(count.json);
-            }
-        }
+        assert!(matches!(command, ShapeCommand::Witness { .. }));
+        let ShapeCommand::Witness { action } = command else {
+            return;
+        };
+        assert!(
+            matches!(action, WitnessAction::Count(_)),
+            "unexpected witness action: {action:?}"
+        );
+        let WitnessAction::Count(count) = action else {
+            return;
+        };
+        assert_eq!(count.tool.as_deref(), Some("shape"));
+        assert_eq!(count.since.as_deref(), Some("2026-01-01T00:00:00Z"));
+        assert_eq!(count.until.as_deref(), Some("2026-01-02T00:00:00Z"));
+        assert_eq!(count.outcome.as_deref(), Some("INCOMPATIBLE"));
+        assert_eq!(count.input_hash.as_deref(), Some("feedbeef"));
+        assert!(count.json);
+    }
+
+    #[test]
+    fn parse_doctor_health_without_positionals() {
+        let args = Args::parse_from(["shape", "doctor", "health"])
+            .expect("expected doctor health parse success");
+
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+
+        let command = args.command.expect("doctor command expected");
+        assert!(matches!(command, ShapeCommand::Doctor(_)));
+        let ShapeCommand::Doctor(doctor) = command else {
+            return;
+        };
+        assert!(!doctor.robot_triage);
+        assert!(matches!(doctor.action, Some(DoctorAction::Health)));
+    }
+
+    #[test]
+    fn parse_doctor_robot_triage_without_positionals() {
+        let args = Args::parse_from(["shape", "doctor", "--robot-triage"])
+            .expect("expected doctor robot triage parse success");
+
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+
+        let command = args.command.expect("doctor command expected");
+        assert!(matches!(command, ShapeCommand::Doctor(_)));
+        let ShapeCommand::Doctor(doctor) = command else {
+            return;
+        };
+        assert!(doctor.robot_triage);
+        assert!(doctor.action.is_none());
     }
 
     #[test]

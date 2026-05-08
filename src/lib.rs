@@ -4,6 +4,7 @@ pub mod capsule;
 pub mod checks;
 pub mod cli;
 pub mod csv;
+pub mod doctor;
 pub mod format;
 pub mod normalize;
 pub mod orchestrator;
@@ -12,6 +13,8 @@ pub mod profile;
 pub mod refusal;
 pub mod scan;
 pub mod witness;
+
+pub(crate) const OPERATOR_JSON: &str = include_str!("../operator.json");
 
 /// Run the shape pipeline. Returns exit code (0, 1, or 2).
 pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
@@ -148,14 +151,14 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
 
     if args.describe {
         let mut stdout = io::stdout();
-        stdout.write_all(include_bytes!("../operator.json"))?;
+        stdout.write_all(OPERATOR_JSON.as_bytes())?;
         stdout.write_all(b"\n")?;
         stdout.flush()?;
         return Ok(0);
     }
 
     if let Some(ref command) = args.command {
-        return run_witness(command);
+        return run_command(command);
     }
 
     // Emit stderr warnings for reserved v0 flags (bd-3pgf)
@@ -189,6 +192,13 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
     Ok(cli::exit::exit_code(result.outcome))
 }
 
+fn run_command(command: &cli::args::ShapeCommand) -> Result<u8, Box<dyn std::error::Error>> {
+    match command {
+        cli::args::ShapeCommand::Witness { action } => run_witness(action),
+        cli::args::ShapeCommand::Doctor(args) => doctor::run(args),
+    }
+}
+
 fn emit_reserved_flag_warnings(args: &cli::args::Args) {
     use std::io::Write;
     let mut stderr = std::io::stderr();
@@ -212,12 +222,9 @@ fn emit_reserved_flag_warnings(args: &cli::args::Args) {
     }
 }
 
-fn run_witness(command: &cli::args::ShapeCommand) -> Result<u8, Box<dyn std::error::Error>> {
+fn run_witness(action: &cli::args::WitnessAction) -> Result<u8, Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 
-    let action = match command {
-        cli::args::ShapeCommand::Witness { action } => action,
-    };
     let response = cli::witness::execute(action);
 
     if let Some(stdout_payload) = response.stdout.as_deref() {
