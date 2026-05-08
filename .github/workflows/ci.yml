@@ -56,7 +56,7 @@ jobs:
       - name: Install UBS (pinned)
         run: |
           UBS_URL="https://raw.githubusercontent.com/Dicklesworthstone/ultimate_bug_scanner/v5.2.75/ubs"
-          UBS_SHA256="21552ce3bb0c42c4b5e61321a29941e688f033d9a099bf4d79cbb10d6428c2f2"
+          UBS_SHA256="25cdf7499b2cbce6ae9d6f343577b72b3418d93140cc998eee228c80aa15731a"
           curl -fsSL "$UBS_URL" -o /tmp/ubs
           echo "$UBS_SHA256  /tmp/ubs" | sha256sum -c -
           install -m 0755 /tmp/ubs /usr/local/bin/ubs
