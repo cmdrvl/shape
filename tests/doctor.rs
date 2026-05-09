@@ -8,6 +8,7 @@ fn help_routes_exit_success() {
         &["--help"][..],
         &["witness", "--help"][..],
         &["doctor", "--help"][..],
+        &["doctor", "health", "--help"][..],
         &["doctor", "capabilities", "--help"][..],
     ] {
         let result = run_shape(args);
@@ -32,6 +33,25 @@ fn doctor_health_is_read_only_and_successful() {
         "doctor health should not write stderr: {}",
         result.stderr
     );
+}
+
+#[test]
+fn doctor_health_json_is_read_only_and_successful() {
+    let result = run_shape(["doctor", "health", "--json"]);
+
+    assert_eq!(result.status, 0);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "doctor health json should not write stderr: {}",
+        result.stderr
+    );
+    let value: serde_json::Value =
+        serde_json::from_str(&result.stdout).expect("health should be JSON");
+
+    assert_eq!(value["schema_version"], "shape.doctor.v1");
+    assert_eq!(value["tool"], "shape");
+    assert_eq!(value["summary"]["status"], "healthy");
+    assert_eq!(value["read_only"], true);
 }
 
 #[test]
@@ -63,6 +83,7 @@ fn doctor_capabilities_json_declares_read_only_contract() {
         .expect("commands should be an array");
     for expected in [
         "shape doctor health",
+        "shape doctor health --json",
         "shape doctor capabilities --json",
         "shape doctor robot-docs",
         "shape doctor --robot-triage",
@@ -116,6 +137,7 @@ fn doctor_robot_docs_names_agent_surface() {
         result.stderr
     );
     assert!(result.stdout.contains("shape doctor health"));
+    assert!(result.stdout.contains("shape doctor health --json"));
     assert!(result.stdout.contains("shape doctor capabilities --json"));
     assert!(result.stdout.contains("no doctor --fix surface exists yet"));
 }

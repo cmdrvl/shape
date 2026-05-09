@@ -87,11 +87,18 @@ pub struct DoctorArgs {
 #[derive(Debug, Clone, Subcommand)]
 pub enum DoctorAction {
     /// Print a cheap one-line health summary.
-    Health,
+    Health(DoctorHealthArgs),
     /// Print the machine-readable doctor capability contract.
     Capabilities(DoctorCapabilitiesArgs),
     /// Print paste-ready operating notes for agents.
     RobotDocs,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct DoctorHealthArgs {
+    /// Emit JSON output.
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -415,7 +422,30 @@ mod tests {
             return;
         };
         assert!(!doctor.robot_triage);
-        assert!(matches!(doctor.action, Some(DoctorAction::Health)));
+        let Some(DoctorAction::Health(health)) = doctor.action else {
+            panic!("unexpected doctor action");
+        };
+        assert!(!health.json);
+    }
+
+    #[test]
+    fn parse_doctor_health_json_without_positionals() {
+        let args = Args::parse_from(["shape", "doctor", "health", "--json"])
+            .expect("expected doctor health --json parse success");
+
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+
+        let command = args.command.expect("doctor command expected");
+        assert!(matches!(command, ShapeCommand::Doctor(_)));
+        let ShapeCommand::Doctor(doctor) = command else {
+            return;
+        };
+        assert!(!doctor.robot_triage);
+        let Some(DoctorAction::Health(health)) = doctor.action else {
+            panic!("unexpected doctor action");
+        };
+        assert!(health.json);
     }
 
     #[test]

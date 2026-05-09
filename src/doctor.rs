@@ -13,21 +13,25 @@ pub fn run(args: &DoctorArgs) -> Result<u8, Box<dyn std::error::Error>> {
     }
 
     match &args.action {
-        Some(DoctorAction::Health) => health(),
+        Some(DoctorAction::Health(health_args)) => health(health_args.json),
         Some(DoctorAction::Capabilities(capabilities_args)) => capabilities(capabilities_args.json),
         Some(DoctorAction::RobotDocs) => robot_docs(),
         None => human_triage(),
     }
 }
 
-fn health() -> Result<u8, Box<dyn std::error::Error>> {
+fn health(json: bool) -> Result<u8, Box<dyn std::error::Error>> {
     let report = build_report();
-    println!(
-        "shape doctor {}: {} checks passed, {} findings",
-        report.summary.status,
-        report.summary.checks_passed,
-        report.findings.len()
-    );
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!(
+            "shape doctor {}: {} checks passed, {} findings",
+            report.summary.status,
+            report.summary.checks_passed,
+            report.findings.len()
+        );
+    }
     Ok(report.exit_code)
 }
 
@@ -73,6 +77,7 @@ fn robot_docs() -> Result<u8, Box<dyn std::error::Error>> {
     println!();
     println!("Commands:");
     println!("- shape doctor health");
+    println!("- shape doctor health --json");
     println!("- shape doctor capabilities --json");
     println!("- shape doctor robot-docs");
     println!("- shape doctor --robot-triage");
@@ -219,6 +224,11 @@ fn build_capabilities() -> DoctorCapabilities {
             CommandCapability {
                 command: "shape doctor health",
                 output: "one-line text",
+                mutates: false,
+            },
+            CommandCapability {
+                command: "shape doctor health --json",
+                output: "json",
                 mutates: false,
             },
             CommandCapability {
