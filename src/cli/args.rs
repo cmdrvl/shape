@@ -422,10 +422,13 @@ mod tests {
             return;
         };
         assert!(!doctor.robot_triage);
-        let Some(DoctorAction::Health(health)) = doctor.action else {
-            panic!("unexpected doctor action");
-        };
-        assert!(!health.json);
+        match doctor.action {
+            Some(DoctorAction::Health(health)) => assert!(!health.json),
+            other => assert!(
+                matches!(other, Some(DoctorAction::Health(_))),
+                "unexpected doctor action: {other:?}"
+            ),
+        }
     }
 
     #[test]
@@ -442,10 +445,13 @@ mod tests {
             return;
         };
         assert!(!doctor.robot_triage);
-        let Some(DoctorAction::Health(health)) = doctor.action else {
-            panic!("unexpected doctor action");
-        };
-        assert!(health.json);
+        match doctor.action {
+            Some(DoctorAction::Health(health)) => assert!(health.json),
+            other => assert!(
+                matches!(other, Some(DoctorAction::Health(_))),
+                "unexpected doctor action: {other:?}"
+            ),
+        }
     }
 
     #[test]
