@@ -1,5 +1,9 @@
 # shape
 
+![shape: structural comparison of two files. A painterly dashboard comparing connections_2024.csv and connections_2026.csv across four checks: schema overlap (1 only in A, 7 in both, 2 only in B, with actual column names listed), key uniqueness (both unique on email), row granularity (both one row per connection), and type consistency (one mismatch on Connected On, string in A but ISO-date in B). The verdict on the right is INCOMPATIBLE with reason type_drift. Remediation as a separate action: freeze a profile that coerces the column to ISO-date in both files before comparison.](docs/images/shape.webp)
+
+> *Shape judges comparability. It does not merge or transform. Run shape before you run reconciliation.*
+
 <div align="center">
 
 [![CI](https://github.com/cmdrvl/shape/actions/workflows/ci.yml/badge.svg)](https://github.com/cmdrvl/shape/actions/workflows/ci.yml)
@@ -694,3 +698,7 @@ cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
+
+---
+
+*`shape` is part of the open-source toolchain from the [CMD+RVL](https://cmdrvl.com) lineage and AI enablement practice. MIT-licensed. Contributions welcome from any practice or stack.*
