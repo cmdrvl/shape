@@ -85,7 +85,7 @@ shape witness <query|last|count> [OPTIONS]
 Profile scoping is live. Lock and size gates remain deferred until the respective spine tools exist:
 
 - `--profile <path>`: scope checks to columns in this profile's `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching.
-- `--profile-id <id>`: profile ID resolved from `~/.cmdrvl/config/shape/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`
+- `--profile-id <id>`: profile ID resolved from `~/.cmdrvl/config/profile/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`
 - `--lock <lockfile>`: verify inputs are members of these lockfiles (repeatable)
 - `--max-rows <n>`: refuse if input exceeds N rows (default: unlimited)
 - `--max-bytes <n>`: refuse if input file exceeds N bytes (default: unlimited)

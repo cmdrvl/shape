@@ -253,7 +253,7 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
 | `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
-| `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from `~/.cmdrvl/config/shape/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`. |
+| `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from `~/.cmdrvl/config/profile/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
 
 <details>

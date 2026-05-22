@@ -300,13 +300,13 @@ fn profile_id_migrates_legacy_default_profile_dir() {
     let payload = parse_json_output(&result.stdout);
     assert_eq!(payload["profile_id"], "loan-tape.v0");
     assert!(
-        home.join(".cmdrvl/config/shape/profiles/loan.yaml")
+        home.join(".cmdrvl/config/profile/profiles/loan.yaml")
             .is_file()
     );
 
     let migration = fs::read_to_string(home.join(".cmdrvl/migrations/applied.jsonl"))
         .expect("profile migration record should exist");
-    assert!(migration.contains("\"path_class\":\"shape_profiles\""));
+    assert!(migration.contains("\"path_class\":\"profile_profiles\""));
 
     let _ = fs::remove_dir_all(workspace);
 }

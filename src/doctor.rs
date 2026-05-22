@@ -301,7 +301,7 @@ fn build_capabilities() -> DoctorCapabilities {
                 mutates_in_this_release: false,
             },
             DataPathCapability {
-                path: "~/.cmdrvl/config/shape/profiles",
+                path: "~/.cmdrvl/config/profile/profiles",
                 purpose: "default --profile-id search path; not touched by doctor commands",
                 mutates_in_this_release: false,
             },

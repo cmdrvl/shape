@@ -63,7 +63,7 @@ where
     let canonical = profile_dir_from_env(get_env);
     migrate_dir_from_env(
         get_env,
-        "shape_profiles",
+        "profile_profiles",
         &canonical,
         legacy_profile_dirs_from_env(get_env),
     )?;
@@ -76,7 +76,7 @@ where
 {
     cmdrvl_root_from_env(get_env)
         .join("config")
-        .join("shape")
+        .join("profile")
         .join("profiles")
 }
 
@@ -501,12 +501,12 @@ mod tests {
 
         let canonical = profile_dir_for_read_from_env(env_for_home(&home)).unwrap();
 
-        assert_eq!(canonical, home.join(".cmdrvl/config/shape/profiles"));
+        assert_eq!(canonical, home.join(".cmdrvl/config/profile/profiles"));
         assert!(canonical.join("demo.yaml").exists());
         assert!(
             fs::read_to_string(home.join(".cmdrvl/migrations/applied.jsonl"))
                 .unwrap()
-                .contains("\"path_class\":\"shape_profiles\"")
+                .contains("\"path_class\":\"profile_profiles\"")
         );
 
         fs::remove_dir_all(tmp).ok();
