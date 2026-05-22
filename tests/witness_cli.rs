@@ -221,7 +221,11 @@ fn compare_mode_appends_witness_record_by_default() {
 #[test]
 fn empty_epistemic_witness_falls_back_to_home_default() {
     let home = unique_temp_dir("compare-empty-env-home");
-    let ledger = home.join(".epistemic").join("witness.jsonl");
+    let ledger = home
+        .join(".cmdrvl")
+        .join("state")
+        .join("witness")
+        .join("witness.jsonl");
     let old = fixture_path(BASIC_OLD).to_string_lossy().into_owned();
     let new = fixture_path(BASIC_NEW).to_string_lossy().into_owned();
 
@@ -252,6 +256,59 @@ fn empty_epistemic_witness_falls_back_to_home_default() {
     let record: serde_json::Value =
         serde_json::from_str(line).expect("ledger line should be valid witness JSON");
     assert_eq!(record["tool"], "shape");
+
+    let _ = fs::remove_dir_all(&home);
+}
+
+#[test]
+fn default_witness_path_copies_legacy_ledger_once() {
+    let home = unique_temp_dir("compare-legacy-witness-home");
+    let legacy = home.join(".epistemic").join("witness.jsonl");
+    fs::create_dir_all(legacy.parent().expect("legacy parent")).expect("create legacy parent");
+    fs::write(&legacy, sample_ledger_contents()).expect("write legacy witness ledger");
+
+    let canonical = home
+        .join(".cmdrvl")
+        .join("state")
+        .join("witness")
+        .join("witness.jsonl");
+    let old = fixture_path(BASIC_OLD).to_string_lossy().into_owned();
+    let new = fixture_path(BASIC_NEW).to_string_lossy().into_owned();
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_shape"));
+    command.arg(&old).arg(&new);
+    command.env("HOME", &home);
+    command.env("EPISTEMIC_WITNESS", "");
+    let result = shape_invocation_from_output(
+        command
+            .output()
+            .expect("failed to execute shape binary for legacy witness migration test"),
+    );
+
+    assert_eq!(result.status, 0);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "legacy witness migration should be quiet: {}",
+        result.stderr
+    );
+
+    let content = fs::read_to_string(&canonical).expect("canonical witness should exist");
+    assert!(
+        content.contains("\"id\":\"id-1\""),
+        "canonical witness should contain copied legacy records: {content}"
+    );
+    assert_eq!(
+        content.lines().count(),
+        3,
+        "compare run should append after copying the two legacy records"
+    );
+
+    let migration = fs::read_to_string(home.join(".cmdrvl/migrations/applied.jsonl"))
+        .expect("migration record should exist");
+    assert!(migration.contains("\"path_class\":\"witness_ledger\""));
+    let notices = fs::read_to_string(home.join(".cmdrvl/notices/deprecated-paths.jsonl"))
+        .expect("deprecation notice should exist");
+    assert!(notices.contains("\"path_class\":\"witness_ledger\""));
 
     let _ = fs::remove_dir_all(&home);
 }

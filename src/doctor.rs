@@ -286,7 +286,7 @@ fn build_capabilities() -> DoctorCapabilities {
             },
             EnvVarCapability {
                 name: "HOME",
-                description: "Used by witness ledger fallback in compare runs; doctor commands do not write it.",
+                description: "Used to resolve ~/.cmdrvl default state and config paths; doctor commands do not write them.",
             },
         ],
         data_paths: vec![
@@ -296,8 +296,13 @@ fn build_capabilities() -> DoctorCapabilities {
                 mutates_in_this_release: false,
             },
             DataPathCapability {
-                path: "~/.epistemic/witness.jsonl",
+                path: "~/.cmdrvl/state/witness/witness.jsonl",
                 purpose: "compare-run witness ledger; not touched by doctor commands",
+                mutates_in_this_release: false,
+            },
+            DataPathCapability {
+                path: "~/.cmdrvl/config/shape/profiles",
+                purpose: "default --profile-id search path; not touched by doctor commands",
                 mutates_in_this_release: false,
             },
             DataPathCapability {

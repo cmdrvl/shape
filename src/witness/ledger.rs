@@ -4,32 +4,13 @@ use std::path::PathBuf;
 
 use super::record::{WitnessRecord, canonical_json};
 
-/// Resolve witness ledger path:
-/// 1) `EPISTEMIC_WITNESS` when set
-/// 2) `~/.epistemic/witness.jsonl` fallback
-pub(crate) fn resolve_ledger_path() -> io::Result<PathBuf> {
-    if let Ok(path) = std::env::var("EPISTEMIC_WITNESS")
-        && !path.trim().is_empty()
-    {
-        return Ok(PathBuf::from(path));
-    }
-
-    let home = home_dir().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "could not determine home directory; set EPISTEMIC_WITNESS",
-        )
-    })?;
-    Ok(home.join(".epistemic").join("witness.jsonl"))
-}
-
 pub struct LedgerWriter {
     path: PathBuf,
 }
 
 impl LedgerWriter {
     pub fn open() -> io::Result<Self> {
-        let path = resolve_ledger_path()?;
+        let path = crate::paths::witness_ledger_path_for_append()?;
         Ok(Self { path })
     }
 
@@ -55,17 +36,10 @@ impl LedgerWriter {
     }
 }
 
-fn home_dir() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .ok()
-        .map(PathBuf::from)
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::record::WitnessRecord;
-    use super::{LedgerWriter, resolve_ledger_path};
+    use super::LedgerWriter;
     use crate::checks::suite::Outcome;
     use crate::cli::args::Args;
     use crate::orchestrator::PipelineResult;
@@ -159,18 +133,5 @@ mod tests {
 
         std::fs::remove_file(path.clone()).ok();
         std::fs::remove_dir(path.parent().expect("parent")).ok();
-    }
-
-    #[test]
-    fn resolve_ledger_path_default_shape() {
-        if std::env::var("EPISTEMIC_WITNESS").is_ok() {
-            return;
-        }
-
-        let resolved = resolve_ledger_path().expect("resolve default witness path");
-        assert!(
-            resolved.ends_with(".epistemic/witness.jsonl")
-                || resolved.ends_with(".epistemic\\witness.jsonl")
-        );
     }
 }

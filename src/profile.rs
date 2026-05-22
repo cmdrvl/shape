@@ -141,11 +141,11 @@ pub fn resolve_profile_id(selector: &str) -> Result<ResolvedProfile, ResolveErro
         return load_profile_from_path(selector_path);
     }
 
-    let Some(search_root) = default_profile_dir() else {
-        return Err(ResolveError::NotFound {
+    let search_root =
+        crate::paths::profile_dir_for_read().map_err(|error| ResolveError::Invalid {
             selector: selector.to_string(),
-        });
-    };
+            error,
+        })?;
 
     resolve_profile_id_in_directory(selector, &search_root)
 }
@@ -188,12 +188,6 @@ pub fn render_profile_yaml(profile: &ResolvedProfile) -> String {
         }
     }
     out
-}
-
-fn default_profile_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .map(|home| home.join(".epistemic").join("profiles"))
 }
 
 fn parse_profile_yaml(raw: &str) -> Result<RawProfile, String> {

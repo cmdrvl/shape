@@ -253,7 +253,7 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
 | `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
-| `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from the search path. Mutually exclusive with `--profile`. |
+| `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from `~/.cmdrvl/config/shape/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
 
 <details>
@@ -517,7 +517,7 @@ It checks the *shape* of your data — schema, keys, row counts, types — befor
 
 ### What's the witness ledger?
 
-Every `shape` comparison is appended to a local JSONL file (`~/.epistemic/witness.jsonl`, or `$EPISTEMIC_WITNESS`). This gives you an audit trail of every structural check. Suppress with `--no-witness`.
+Every `shape` comparison is appended to a local JSONL file (`~/.cmdrvl/state/witness/witness.jsonl`, or `$EPISTEMIC_WITNESS`). Legacy `~/.epistemic/witness.jsonl` ledgers are copied into the canonical location on first default use. This gives you an audit trail of every structural check. Suppress with `--no-witness`.
 
 ### Can I query past comparisons?
 
@@ -572,8 +572,9 @@ shape witness count [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
 
 ### Ledger Location
 
-- Default: `~/.epistemic/witness.jsonl`
+- Default: `~/.cmdrvl/state/witness/witness.jsonl`
 - Override: set `EPISTEMIC_WITNESS` environment variable
+- Migration: legacy `~/.epistemic/witness.jsonl` is copied on first default use, with records in `~/.cmdrvl/migrations/applied.jsonl` and `~/.cmdrvl/notices/deprecated-paths.jsonl`.
 - Malformed ledger lines are skipped; valid lines continue to be processed.
 
 </details>

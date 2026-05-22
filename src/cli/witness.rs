@@ -310,24 +310,7 @@ fn load_records_from_path(path: &Path) -> io::Result<Vec<WitnessRecord>> {
 }
 
 fn resolve_ledger_path() -> io::Result<PathBuf> {
-    if let Ok(path) = std::env::var("EPISTEMIC_WITNESS") {
-        return Ok(PathBuf::from(path));
-    }
-
-    let home = home_dir().ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            "could not determine home directory; set EPISTEMIC_WITNESS",
-        )
-    })?;
-    Ok(home.join(".epistemic").join("witness.jsonl"))
-}
-
-fn home_dir() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .ok()
-        .map(PathBuf::from)
+    crate::paths::witness_ledger_path_for_query()
 }
 
 #[cfg(test)]
@@ -622,17 +605,19 @@ mod tests {
     }
 
     #[test]
-    fn resolve_ledger_path_uses_epistemic_default_suffix() {
+    fn resolve_ledger_path_uses_cmdrvl_default_suffix() {
         let path = resolve_ledger_path().expect("resolve witness ledger path");
 
-        if let Ok(expected) = std::env::var("EPISTEMIC_WITNESS") {
+        if let Ok(expected) = std::env::var("EPISTEMIC_WITNESS")
+            && !expected.trim().is_empty()
+        {
             assert_eq!(path, PathBuf::from(expected));
             return;
         }
 
         assert!(
-            path.ends_with(".epistemic/witness.jsonl")
-                || path.ends_with(".epistemic\\witness.jsonl")
+            path.ends_with(".cmdrvl/state/witness/witness.jsonl")
+                || path.ends_with(".cmdrvl\\state\\witness\\witness.jsonl")
         );
     }
 }

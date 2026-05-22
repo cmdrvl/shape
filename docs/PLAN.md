@@ -85,7 +85,7 @@ shape witness <query|last|count> [OPTIONS]
 Profile scoping is live. Lock and size gates remain deferred until the respective spine tools exist:
 
 - `--profile <path>`: scope checks to columns in this profile's `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching.
-- `--profile-id <id>`: profile ID (resolved from search path). Mutually exclusive with `--profile`
+- `--profile-id <id>`: profile ID resolved from `~/.cmdrvl/config/shape/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`
 - `--lock <lockfile>`: verify inputs are members of these lockfiles (repeatable)
 - `--max-rows <n>`: refuse if input exceeds N rows (default: unlimited)
 - `--max-bytes <n>`: refuse if input file exceeds N bytes (default: unlimited)
@@ -114,7 +114,8 @@ For `shape witness <...>` subcommands:
 - Opt-out: `--no-witness`.
 - Ledger path resolution:
   1. `EPISTEMIC_WITNESS` env var, if set
-  2. `~/.epistemic/witness.jsonl` otherwise
+  2. `~/.cmdrvl/state/witness/witness.jsonl` otherwise
+- Legacy migration: `~/.epistemic/witness.jsonl` is copied on first default use, with migration and deprecation notice records under `~/.cmdrvl/`.
 - Witness failures never change the domain exit code. If append/query fails, print a warning/refusal message to stderr and preserve domain result semantics.
 
 Witness query subcommands (same shape as rvl):
@@ -129,7 +130,7 @@ shape witness count [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
   [--outcome <COMPATIBLE|INCOMPATIBLE|REFUSAL>] [--input-hash <substring>] [--json]
 ```
 
-`shape witness` is read/query-only. It does not mutate ledger state.
+`shape witness` does not append witness records. When using the default ledger path, it may copy a legacy ledger into `~/.cmdrvl/` and write migration/deprecation metadata before reading.
 
 ---
 

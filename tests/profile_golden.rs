@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-use helpers::{fixture_path, run_shape, run_shape_with_fixtures};
+use helpers::{fixture_path, run_shape, run_shape_with_env, run_shape_with_fixtures};
 
 const BASIC_OLD: &str = "basic_old.csv";
 const BASIC_NEW: &str = "basic_new.csv";
@@ -260,7 +260,59 @@ fn profile_with_redacted_default() {
 }
 
 // ---------------------------------------------------------------------------
-// 6. golden_json_profile_column_registry_support
+// 6. profile_id_migrates_legacy_default_profile_dir
+// ---------------------------------------------------------------------------
+
+#[test]
+fn profile_id_migrates_legacy_default_profile_dir() {
+    let workspace = unique_capsule_dir("profile-id-migration");
+    let home = workspace.join("home");
+    let legacy_profiles = home.join(".epistemic").join("profiles");
+    fs::create_dir_all(&legacy_profiles).expect("create legacy profile directory");
+    fs::write(
+        legacy_profiles.join("loan.yaml"),
+        "profile_id: loan-tape.v0\nprofile_sha256: sha256:test-loan-tape\ninclude_columns:\n  - loan_id\n  - balance\nkey:\n  - loan_id\n",
+    )
+    .expect("write legacy profile");
+
+    let old = fixture_path(BASIC_OLD).to_string_lossy().into_owned();
+    let new = fixture_path(BASIC_NEW).to_string_lossy().into_owned();
+    let home_str = home.to_string_lossy().into_owned();
+    let result = run_shape_with_env(
+        &[
+            old.as_str(),
+            new.as_str(),
+            "--json",
+            "--no-witness",
+            "--profile-id",
+            "loan-tape.v0",
+        ],
+        &[("HOME", home_str.as_str())],
+    );
+
+    assert_eq!(result.status, 0);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "unexpected stderr: {}",
+        result.stderr
+    );
+
+    let payload = parse_json_output(&result.stdout);
+    assert_eq!(payload["profile_id"], "loan-tape.v0");
+    assert!(
+        home.join(".cmdrvl/config/shape/profiles/loan.yaml")
+            .is_file()
+    );
+
+    let migration = fs::read_to_string(home.join(".cmdrvl/migrations/applied.jsonl"))
+        .expect("profile migration record should exist");
+    assert!(migration.contains("\"path_class\":\"shape_profiles\""));
+
+    let _ = fs::remove_dir_all(workspace);
+}
+
+// ---------------------------------------------------------------------------
+// 7. golden_json_profile_column_registry_support
 // ---------------------------------------------------------------------------
 
 #[test]

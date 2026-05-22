@@ -30,8 +30,8 @@
     { "name": "delimiter", "flag": "--delimiter", "type": "string", "description": "Force CSV delimiter for both files" },
     { "name": "no_witness", "flag": "--no-witness", "type": "flag", "description": "Suppress ambient witness ledger recording for this compare run" },
     { "name": "capsule_dir", "flag": "--capsule-dir", "type": "file_path", "description": "Write deterministic repro capsule artifacts to this directory (default off)" },
-    { "name": "profile", "flag": "--profile", "type": "file_path", "description": "Reserved in v0; parsed but check scoping is deferred" },
-    { "name": "profile_id", "flag": "--profile-id", "type": "string", "description": "Reserved in v0; parsed and echoed in JSON profile_id" },
+    { "name": "profile", "flag": "--profile", "type": "file_path", "description": "Scope checks to a profile file's include_columns" },
+    { "name": "profile_id", "flag": "--profile-id", "type": "string", "description": "Resolve a frozen profile from ~/.cmdrvl/config/shape/profiles; legacy ~/.epistemic/profiles is copied on first default use" },
     { "name": "lock", "flag": "--lock", "type": "file_path", "repeatable": true, "description": "Reserved in v0; lock verification is deferred" },
     { "name": "max_rows", "flag": "--max-rows", "type": "integer", "description": "Reserved in v0; row-limit refusal is deferred" },
     { "name": "max_bytes", "flag": "--max-bytes", "type": "integer", "description": "Reserved in v0; byte-limit refusal is deferred" },
@@ -65,7 +65,8 @@
         "error_exit_code": 2,
         "ledger_path_resolution": [
           "EPISTEMIC_WITNESS",
-          "~/.epistemic/witness.jsonl"
+          "~/.cmdrvl/state/witness/witness.jsonl",
+          "legacy ~/.epistemic/witness.jsonl is copied on first default use"
         ],
         "json_no_match_stderr_message": "shape: no matching witness records"
       }
