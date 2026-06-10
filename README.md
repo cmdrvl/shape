@@ -241,6 +241,10 @@ Prebuilt binaries are available for x86_64 and ARM64 on Linux, macOS, and Window
 
 ```
 shape <old.csv> <new.csv> [OPTIONS]
+shape --robot-triage
+shape capabilities --json
+shape robot-docs guide
+shape witness <query|last|count> [OPTIONS]
 ```
 
 ### Flags
@@ -255,6 +259,7 @@ shape <old.csv> <new.csv> [OPTIONS]
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
 | `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from `~/.cmdrvl/config/profile/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
+| `--robot-triage` | flag | `false` | Emit one-call machine triage for headless agents without positional args. |
 
 <details>
 <summary><strong>Reserved v0 flags</strong> (parsed for schema stability, not yet enforced at runtime)</summary>
@@ -362,6 +367,23 @@ Both `shape` and `rvl` are designed to be consumed by agents and pipelines, not 
 An agent can learn how to invoke `shape` without reading docs:
 
 ```bash
+$ shape --robot-triage | jq '.summary'
+{
+  "status": "healthy",
+  "checks_passed": 3,
+  "checks_total": 3,
+  "findings_count": 0
+}
+
+$ shape capabilities --json | jq -r '.agent_surfaces.robot_triage.command'
+shape --robot-triage
+
+$ shape capabilities --json | jq -r '.agent_surfaces.robot_docs.command'
+shape robot-docs guide
+
+$ shape robot-docs guide
+# shape robot-docs guide
+
 $ shape --describe | jq '.exit_codes'
 {
   "0": { "meaning": "COMPATIBLE", "domain": "positive" },
@@ -397,7 +419,7 @@ if [ "$outcome" = "REAL_CHANGE" ]; then
 fi
 ```
 
-Everything an agent needs is in `--json` output: structured verdicts, exit codes for branching, and `--describe` for tool discovery.
+For compare runs, `--json` emits exactly one structured verdict on stdout. For tool discovery, use `shape --robot-triage`, `shape capabilities --json`, `shape robot-docs guide`, or `shape --describe`.
 
 ---
 

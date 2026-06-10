@@ -33,6 +33,10 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
     };
 
+    if args.robot_triage {
+        return doctor::emit_robot_triage();
+    }
+
     if args.schema {
         let schema = serde_json::json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -159,7 +163,7 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
     }
 
     if let Some(ref command) = args.command {
-        return run_command(command);
+        return run_command(command, args.json);
     }
 
     // Emit stderr warnings for reserved v0 flags (bd-3pgf)
@@ -193,10 +197,17 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
     Ok(cli::exit::exit_code(result.outcome))
 }
 
-fn run_command(command: &cli::args::ShapeCommand) -> Result<u8, Box<dyn std::error::Error>> {
+fn run_command(
+    command: &cli::args::ShapeCommand,
+    json_output: bool,
+) -> Result<u8, Box<dyn std::error::Error>> {
     match command {
         cli::args::ShapeCommand::Witness { action } => run_witness(action),
-        cli::args::ShapeCommand::Doctor(args) => doctor::run(args),
+        cli::args::ShapeCommand::Capabilities(args) => {
+            doctor::emit_capabilities(args.json || json_output)
+        }
+        cli::args::ShapeCommand::RobotDocs { action } => doctor::emit_robot_docs(action.as_ref()),
+        cli::args::ShapeCommand::Doctor(args) => doctor::run(args, json_output),
     }
 }
 

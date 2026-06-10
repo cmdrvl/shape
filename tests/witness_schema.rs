@@ -263,7 +263,13 @@ fn describe_reports_ambient_witness_recording_contract() {
         "unexpected no_witness description: {no_witness_description}"
     );
 
-    let actions = payload["subcommands"][0]["actions"]
+    let witness = payload["subcommands"]
+        .as_array()
+        .expect("operator subcommands should be an array")
+        .iter()
+        .find(|entry| entry["name"].as_str() == Some("witness"))
+        .expect("operator should describe witness subcommand");
+    let actions = witness["actions"]
         .as_array()
         .expect("operator witness actions should be an array");
     let count_usage = actions

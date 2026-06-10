@@ -359,7 +359,6 @@ jobs:
           class Shape < Formula
             desc "Structural comparability gate for CSV datasets"
             homepage "https://github.com/cmdrvl/shape"
-            version "{bare}"
             license "MIT"
           {"".join(chr(10) + l for l in blocks)}
 

@@ -9,14 +9,14 @@ use clap::{ArgAction, Parser, Subcommand};
     name = "shape",
     version,
     about = "Structural comparability gate for CSV datasets",
-    override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor <health|capabilities|robot-docs> [OPTIONS]",
+    override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor <health|capabilities|robot-docs> [OPTIONS]",
     subcommand_negates_reqs = true
 )]
 pub struct Args {
-    #[arg(value_name = "old.csv", required_unless_present_any = ["describe", "schema"])]
+    #[arg(value_name = "old.csv", required_unless_present_any = ["describe", "schema", "robot_triage"])]
     pub old: Option<PathBuf>,
 
-    #[arg(value_name = "new.csv", required_unless_present_any = ["describe", "schema"])]
+    #[arg(value_name = "new.csv", required_unless_present_any = ["describe", "schema", "robot_triage"])]
     pub new: Option<PathBuf>,
 
     #[arg(long, value_name = "column")]
@@ -60,6 +60,10 @@ pub struct Args {
     #[arg(long)]
     pub describe: bool,
 
+    /// Emit one-call machine triage for headless agents.
+    #[arg(long = "robot-triage")]
+    pub robot_triage: bool,
+
     #[command(subcommand)]
     pub command: Option<ShapeCommand>,
 }
@@ -70,8 +74,28 @@ pub enum ShapeCommand {
         #[command(subcommand)]
         action: WitnessAction,
     },
+    /// Print the machine-readable shape capability contract.
+    Capabilities(TopLevelCapabilitiesArgs),
+    /// Print paste-ready operating notes for agents.
+    RobotDocs {
+        #[command(subcommand)]
+        action: Option<RobotDocsAction>,
+    },
     /// Inspect shape's read-only diagnostic surface.
     Doctor(DoctorArgs),
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct TopLevelCapabilitiesArgs {
+    /// Emit JSON output.
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum RobotDocsAction {
+    /// Print the agent operating guide.
+    Guide,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -79,6 +103,10 @@ pub struct DoctorArgs {
     /// Emit one-call machine triage for headless agents.
     #[arg(long = "robot-triage")]
     pub robot_triage: bool,
+
+    /// Refuse safely; repair mode is not available in this release.
+    #[arg(long, hide = true)]
+    pub fix: bool,
 
     #[command(subcommand)]
     pub action: Option<DoctorAction>,
@@ -186,7 +214,7 @@ impl Args {
 mod tests {
     use clap::error::ErrorKind;
 
-    use super::{Args, DoctorAction, ShapeCommand, WitnessAction};
+    use super::{Args, DoctorAction, RobotDocsAction, ShapeCommand, WitnessAction};
 
     #[test]
     fn parse_describe_without_positionals() {
@@ -203,6 +231,17 @@ mod tests {
         let args = Args::parse_from(["shape", "--schema"]).expect("expected parse success");
 
         assert!(args.schema);
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+        assert!(args.command.is_none());
+    }
+
+    #[test]
+    fn parse_robot_triage_without_positionals() {
+        let args = Args::parse_from(["shape", "--robot-triage"])
+            .expect("expected robot triage parse success");
+
+        assert!(args.robot_triage);
         assert!(args.old.is_none());
         assert!(args.new.is_none());
         assert!(args.command.is_none());
@@ -468,7 +507,65 @@ mod tests {
             return;
         };
         assert!(doctor.robot_triage);
+        assert!(!doctor.fix);
         assert!(doctor.action.is_none());
+    }
+
+    #[test]
+    fn parse_capabilities_without_positionals() {
+        let args = Args::parse_from(["shape", "capabilities", "--json"])
+            .expect("expected capabilities parse success");
+
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+
+        let command = args.command.expect("capabilities command expected");
+        match command {
+            ShapeCommand::Capabilities(capabilities) => assert!(capabilities.json),
+            other => assert!(
+                matches!(other, ShapeCommand::Capabilities(_)),
+                "unexpected command"
+            ),
+        }
+    }
+
+    #[test]
+    fn parse_robot_docs_guide_without_positionals() {
+        let args = Args::parse_from(["shape", "robot-docs", "guide"])
+            .expect("expected robot-docs guide parse success");
+
+        assert!(args.old.is_none());
+        assert!(args.new.is_none());
+
+        let command = args.command.expect("robot-docs command expected");
+        match command {
+            ShapeCommand::RobotDocs { action } => {
+                assert!(matches!(action, Some(RobotDocsAction::Guide)));
+            }
+            other => assert!(
+                matches!(other, ShapeCommand::RobotDocs { .. }),
+                "unexpected command"
+            ),
+        }
+    }
+
+    #[test]
+    fn parse_doctor_fix_without_positionals() {
+        let args =
+            Args::parse_from(["shape", "doctor", "--fix"]).expect("expected doctor --fix parse");
+
+        let command = args.command.expect("doctor command expected");
+        match command {
+            ShapeCommand::Doctor(doctor) => {
+                assert!(doctor.fix);
+                assert!(!doctor.robot_triage);
+                assert!(doctor.action.is_none());
+            }
+            other => assert!(
+                matches!(other, ShapeCommand::Doctor(_)),
+                "unexpected command"
+            ),
+        }
     }
 
     #[test]

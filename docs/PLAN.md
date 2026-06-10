@@ -68,6 +68,9 @@ Code should be structurally similar to rvl where applicable. shape should feel l
 
 ```bash
 shape <old.csv> <new.csv> [--key <column>] [--delimiter <delim>] [--json]
+shape --robot-triage
+shape capabilities --json
+shape robot-docs guide
 shape witness <query|last|count> [OPTIONS]
 ```
 
@@ -78,7 +81,15 @@ shape witness <query|last|count> [OPTIONS]
 - `--json`: machine output (stable schema; no human formatting)
 - `--no-witness`: suppress witness ledger recording for this run
 - `--describe`: print the compiled-in `operator.json` to stdout and exit 0. Checked before file arguments are validated, so `shape --describe` works with no positional args.
+- `--robot-triage`: emit one-call machine triage for headless agents without positional args.
 - `--version`: print `shape <semver>` to stdout and exit 0
+
+### Agent discovery surfaces
+
+- `shape --robot-triage`: JSON health, checks, findings, recommended command, and embedded capabilities.
+- `shape capabilities --json`: JSON capability contract, agent surfaces, side-effect guarantees, and unavailable repair mode.
+- `shape robot-docs guide`: paste-ready Markdown operating notes for agents.
+- `shape doctor --fix`: safe refusal; exits `2`, writes stderr only, and names the read-only alternatives.
 
 ### Flags (v0.1 — epistemic spine extensions)
 
@@ -1310,6 +1321,7 @@ Provide basic test fixtures in `tests/fixtures/`:
 - `shape witness <query|last|count>` subcommands
 - `--version` flag (prints `shape <semver>`)
 - `--profile` / `--profile-id` profile scoping
+- top-level agent discovery: `--robot-triage`, `capabilities --json`, and `robot-docs guide`
 - COMPATIBLE / INCOMPATIBLE outcome with four checks
 - Exit codes 0/1/2
 - Refusal system with `E_IO`, `E_ENCODING`, `E_CSV_PARSE`, `E_EMPTY`, `E_HEADERS`, `E_DIALECT`

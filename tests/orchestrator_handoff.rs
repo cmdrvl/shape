@@ -271,6 +271,7 @@ fn args_with_delimiter(
         explicit: false,
         schema: false,
         describe: false,
+        robot_triage: false,
         command: None,
     }
 }

@@ -408,8 +408,13 @@ fn describe_operator_contract_includes_witness_usage_and_no_witness_option() {
         "operator options should include --no-witness"
     );
 
-    assert_eq!(payload["subcommands"][0]["name"].as_str(), Some("witness"));
-    let actions = payload["subcommands"][0]["actions"]
+    let witness = payload["subcommands"]
+        .as_array()
+        .expect("subcommands should be an array")
+        .iter()
+        .find(|entry| entry["name"].as_str() == Some("witness"))
+        .expect("witness subcommand should be present");
+    let actions = witness["actions"]
         .as_array()
         .expect("witness actions should be an array");
 

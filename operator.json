@@ -1,7 +1,7 @@
 {
   "schema_version": "operator.v0",
   "name": "shape",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
@@ -11,6 +11,9 @@
     "binary": "shape",
     "usage": [
       "shape <old.csv> <new.csv> [OPTIONS]",
+      "shape --robot-triage",
+      "shape capabilities --json",
+      "shape robot-docs guide",
       "shape witness <query|last|count> [OPTIONS]",
       "shape doctor <health|capabilities|robot-docs> [OPTIONS]",
       "shape doctor --robot-triage"
@@ -37,10 +40,37 @@
     { "name": "max_bytes", "flag": "--max-bytes", "type": "integer", "description": "Reserved in v0; byte-limit refusal is deferred" },
     { "name": "explicit", "flag": "--explicit", "type": "flag", "description": "Show column names and other identifying metadata in output (default: redacted for zero-retention safety)" },
     { "name": "schema", "flag": "--schema", "type": "flag", "description": "Print JSON Schema for shape.v0 output format and exit 0" },
-    { "name": "describe", "flag": "--describe", "type": "flag", "description": "Print compiled operator.json and exit 0 without positional args" }
+    { "name": "describe", "flag": "--describe", "type": "flag", "description": "Print compiled operator.json and exit 0 without positional args" },
+    { "name": "robot_triage", "flag": "--robot-triage", "type": "flag", "description": "Emit one-call machine triage for headless agents without positional args" }
   ],
 
   "subcommands": [
+    {
+      "name": "capabilities",
+      "description": "Top-level machine-readable capability contract for headless agents",
+      "status": "available",
+      "usage": "shape capabilities --json",
+      "current_runtime_behavior": {
+        "read_only": true,
+        "network": "not_used",
+        "success_exit_code": 0,
+        "writes_witness": false,
+        "writes_capsules": false
+      }
+    },
+    {
+      "name": "robot-docs",
+      "description": "Top-level paste-ready operating notes for agents",
+      "status": "available",
+      "usage": "shape robot-docs guide",
+      "current_runtime_behavior": {
+        "read_only": true,
+        "network": "not_used",
+        "success_exit_code": 0,
+        "writes_witness": false,
+        "writes_capsules": false
+      }
+    },
     {
       "name": "witness",
       "description": "Witness ledger query commands",
@@ -95,6 +125,10 @@
         {
           "name": "robot-triage",
           "usage": "shape doctor --robot-triage"
+        },
+        {
+          "name": "fix",
+          "usage": "shape doctor --fix"
         }
       ],
       "current_runtime_behavior": {
@@ -175,8 +209,15 @@
 
   "capabilities": {
     "formats": ["csv"],
-    "profile_aware": false,
+    "profile_aware": true,
     "streaming": false,
+    "agent_surfaces": {
+      "global_json": "shape --json <old.csv> <new.csv>",
+      "robot_triage": "shape --robot-triage",
+      "capabilities": "shape capabilities --json",
+      "robot_docs": "shape robot-docs guide",
+      "doctor_fix": "shape doctor --fix"
+    },
     "witness": {
       "ambient_recording": "enabled_by_default",
       "query_subcommands": "available",

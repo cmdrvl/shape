@@ -437,6 +437,7 @@ mod tests {
             explicit: false,
             schema: false,
             describe: false,
+            robot_triage: false,
             command: None,
         }
     }
