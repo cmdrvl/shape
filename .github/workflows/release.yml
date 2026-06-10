@@ -352,6 +352,7 @@ jobs:
               blocks.append(f'      sha256 "{sha}"')
               blocks.append("    end")
           blocks.append("  end")
+          blocks_text = "".join(chr(10) + l for l in blocks).removeprefix(chr(10))
 
           formula = f'''# typed: false
           # frozen_string_literal: true
@@ -360,7 +361,7 @@ jobs:
             desc "Structural comparability gate for CSV datasets"
             homepage "https://github.com/cmdrvl/shape"
             license "MIT"
-          {"".join(chr(10) + l for l in blocks)}
+          {blocks_text}
 
             def install
               bin.install "shape"
