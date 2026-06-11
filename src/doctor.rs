@@ -104,6 +104,17 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
     println!("- 1: findings present");
     println!("- 2: command-line usage error from clap");
     println!();
+    println!("Composition:");
+    println!(
+        "- Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl` when comparing two tabular datasets."
+    );
+    println!(
+        "- Continue to `rvl <old.csv> <new.csv> --key <column> --json` only when shape reports COMPATIBLE."
+    );
+    println!(
+        "- Feed shape reports to `assess` with the matching rvl/verify/benchmark artifacts, or seal them with `pack`."
+    );
+    println!();
     println!(
         "Repair policy: shape doctor --fix is unavailable and exits 2 without stdout. Use shape --robot-triage or shape capabilities --json for read-only diagnostics."
     );
@@ -301,6 +312,50 @@ fn build_capabilities() -> DoctorCapabilities {
             "repro_capsules": true,
             "profile_scoping": true,
             "streaming": false
+        }),
+        composition: json!({
+            "family": {
+                "name": "cmdrvl-spine",
+                "siblings": ["rvl", "verify", "benchmark", "assess", "pack"],
+                "capabilities": {
+                    "shape": "shape capabilities --json",
+                    "rvl": "rvl capabilities --json",
+                    "assess": "assess capabilities --json",
+                    "pack": "pack capabilities --json"
+                }
+            },
+            "role": "structural_comparability_gate",
+            "position": "before_numeric_diff",
+            "accepts": [
+                {
+                    "kind": "csv_pair",
+                    "description": "Two CSV datasets that may be compared after schema, key, granularity, and type checks."
+                }
+            ],
+            "produces": [
+                {
+                    "kind": "shape_report",
+                    "schema": "shape.v0",
+                    "command": "shape <old.csv> <new.csv> --key <column> --json"
+                }
+            ],
+            "canonical_chains": [
+                {
+                    "name": "gate_numeric_diff",
+                    "commands": [
+                        "shape <old.csv> <new.csv> --key <column> --json > shape.json",
+                        "jq -e '.outcome == \"COMPATIBLE\"' shape.json >/dev/null",
+                        "rvl <old.csv> <new.csv> --key <column> --json > rvl.json"
+                    ],
+                    "stop_conditions": ["REFUSAL", "INCOMPATIBLE"],
+                    "downstream_tools": ["rvl", "assess", "pack"]
+                }
+            ],
+            "agent_rules": [
+                "Run shape before rvl whenever the task is to compare two tabular datasets.",
+                "Do not run rvl on the pair when shape reports REFUSAL or INCOMPATIBLE.",
+                "Use the same key/profile choices for shape and the downstream rvl run."
+            ]
         }),
         side_effects: json!({
             "shape --robot-triage": {
@@ -523,6 +578,7 @@ struct DoctorCapabilities {
     fix_mode: FixModeCapability,
     agent_surfaces: serde_json::Value,
     shape_capabilities: serde_json::Value,
+    composition: serde_json::Value,
     side_effects: serde_json::Value,
     commands: Vec<CommandCapability>,
     detectors: Vec<DetectorCapability>,

@@ -80,6 +80,18 @@ fn top_level_capabilities_json_declares_agent_surfaces() {
         value["side_effects"]["shape capabilities --json"]["uses_network"],
         false
     );
+    assert_eq!(
+        value["composition"]["role"],
+        "structural_comparability_gate"
+    );
+    assert_eq!(
+        value["composition"]["canonical_chains"][0]["downstream_tools"][0],
+        "rvl"
+    );
+    assert_eq!(
+        value["composition"]["canonical_chains"][0]["commands"][2],
+        "rvl <old.csv> <new.csv> --key <column> --json > rvl.json"
+    );
 }
 
 #[test]
@@ -95,6 +107,12 @@ fn top_level_robot_docs_guide_names_agent_surface() {
     assert!(result.stdout.contains("shape --robot-triage"));
     assert!(result.stdout.contains("shape capabilities --json"));
     assert!(result.stdout.contains("shape robot-docs guide"));
+    assert!(
+        result
+            .stdout
+            .contains("Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl`")
+    );
+    assert!(result.stdout.contains("Continue to `rvl <old.csv> <new.csv> --key <column> --json` only when shape reports COMPATIBLE"));
     assert!(result.stdout.contains("shape doctor --fix is unavailable"));
 }
 
@@ -230,6 +248,7 @@ fn doctor_robot_docs_names_agent_surface() {
     assert!(result.stdout.contains("shape doctor health"));
     assert!(result.stdout.contains("shape doctor health --json"));
     assert!(result.stdout.contains("shape doctor capabilities --json"));
+    assert!(result.stdout.contains("Feed shape reports to `assess`"));
     assert!(result.stdout.contains("shape doctor --fix is unavailable"));
 }
 
