@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::refusal::payload::RefusalPayload;
 
-const CANDIDATE_DELIMITERS: [u8; 5] = [b',', b'\t', b';', b'|', b'^'];
+const CANDIDATE_DELIMITERS: [u8; 5] = *b",\t;|^";
 const MAX_SAMPLE_RECORDS: usize = 200;
 const MAX_SAMPLE_BYTES: usize = 64 * 1024;
 

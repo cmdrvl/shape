@@ -92,7 +92,10 @@ mod tests {
 
     fn key_scan(values: &[&[u8]], duplicate_count: u64, empty_count: u64) -> KeyScan {
         KeyScan {
-            values: values.iter().map(|v| v.to_vec()).collect::<HashSet<_>>(),
+            values: values
+                .iter()
+                .map(|value| vec![value.to_vec()])
+                .collect::<HashSet<_>>(),
             duplicate_count,
             empty_count,
         }

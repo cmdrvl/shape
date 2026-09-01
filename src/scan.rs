@@ -19,9 +19,11 @@ pub struct ScanResult {
 }
 
 /// Key-tracking details captured during a single-pass scan.
+pub type KeyValue = Vec<Vec<u8>>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyScan {
-    pub values: HashSet<Vec<u8>>,
+    pub values: HashSet<KeyValue>,
     pub duplicate_count: u64,
     pub empty_count: u64,
 }
@@ -88,8 +90,8 @@ impl NumericClassifier {
 ///
 /// `key_column_indices` is empty when no key is requested. For a single-column
 /// key it contains one index; for composite keys it holds all component indices.
-/// Composite uniqueness is checked by concatenating component values with a
-/// 0xFF separator and inserting into the KeyScan HashSet.
+/// Composite uniqueness is checked on the ordered component tuple itself so
+/// arbitrary component bytes cannot collide with an encoding delimiter.
 pub fn scan_file(
     file: &Path,
     raw_bytes: &[u8],
@@ -128,13 +130,10 @@ pub fn scan_file(
 
         if let Some(ks) = &mut key_scan {
             let composite = build_composite_key(record, key_column_indices);
-            if composite.iter().all(|v| is_missing(v)) {
+            if composite.iter().any(Vec::is_empty) {
                 ks.empty_count += 1;
-            } else {
-                let joined = join_composite_key(&composite);
-                if !ks.values.insert(joined) {
-                    ks.duplicate_count += 1;
-                }
+            } else if !ks.values.insert(composite) {
+                ks.duplicate_count += 1;
             }
         }
 
@@ -159,23 +158,11 @@ pub fn scan_file(
 }
 
 /// Extract trimmed values for each key column index from a record.
-fn build_composite_key(record: &ByteRecord, indices: &[usize]) -> Vec<Vec<u8>> {
+fn build_composite_key(record: &ByteRecord, indices: &[usize]) -> KeyValue {
     indices
         .iter()
         .map(|&idx| ascii_trim(record.get(idx).unwrap_or(&[])).to_vec())
         .collect()
-}
-
-/// Join composite key values with 0xFF separator for uniqueness checking.
-fn join_composite_key(parts: &[Vec<u8>]) -> Vec<u8> {
-    let mut joined = Vec::new();
-    for (i, part) in parts.iter().enumerate() {
-        if i > 0 {
-            joined.push(0xFF);
-        }
-        joined.extend_from_slice(part);
-    }
-    joined
 }
 
 /// Returns true when every field in the record is blank after ASCII-trim.
@@ -533,6 +520,83 @@ mod tests {
         assert_eq!(key_scan.values.len(), 2);
         assert_eq!(key_scan.duplicate_count, 1);
         assert_eq!(key_scan.empty_count, 1);
+    }
+
+    #[test]
+    fn composite_keys_preserve_component_boundaries_and_repeated_prefixes() {
+        let bytes = b"first,second,amount\na\xff,b,1\na,\xffb,2\nrepeat,one,3\nrepeat,two,4\n";
+        let result = scan_file(
+            Path::new("composite.csv"),
+            bytes,
+            "first,second,amount\n".len(),
+            &Dialect::default(),
+            &[2],
+            &[0, 1],
+        )
+        .expect("composite scan should succeed");
+
+        let key_scan = result.key_scan.expect("key scan should be present");
+        assert_eq!(key_scan.values.len(), 4);
+        assert_eq!(key_scan.duplicate_count, 0);
+        assert_eq!(key_scan.empty_count, 0);
+        assert!(
+            key_scan
+                .values
+                .contains(&vec![b"repeat".to_vec(), b"one".to_vec()])
+        );
+        assert!(
+            key_scan
+                .values
+                .contains(&vec![b"repeat".to_vec(), b"two".to_vec()])
+        );
+    }
+
+    #[test]
+    fn composite_keys_detect_duplicate_complete_tuples() {
+        let bytes = b"first,second,amount\nA,1,10\nA,1,20\nA,2,30\n";
+        let result = scan_file(
+            Path::new("duplicate-composite.csv"),
+            bytes,
+            "first,second,amount\n".len(),
+            &Dialect::default(),
+            &[2],
+            &[0, 1],
+        )
+        .expect("composite scan should succeed");
+
+        let key_scan = result.key_scan.expect("key scan should be present");
+        assert_eq!(key_scan.values.len(), 2);
+        assert_eq!(key_scan.duplicate_count, 1);
+        assert_eq!(key_scan.empty_count, 0);
+    }
+
+    #[test]
+    fn composite_keys_require_each_component_but_keep_missing_tokens_as_bytes() {
+        let bytes = b"first,second,amount\nA,,10\n,B,20\nNA,NULL,30\nA,-,40\n";
+        let result = scan_file(
+            Path::new("incomplete-composite.csv"),
+            bytes,
+            "first,second,amount\n".len(),
+            &Dialect::default(),
+            &[2],
+            &[0, 1],
+        )
+        .expect("composite scan should succeed");
+
+        let key_scan = result.key_scan.expect("key scan should be present");
+        assert_eq!(key_scan.values.len(), 2);
+        assert_eq!(key_scan.duplicate_count, 0);
+        assert_eq!(key_scan.empty_count, 2);
+        assert!(
+            key_scan
+                .values
+                .contains(&vec![b"NA".to_vec(), b"NULL".to_vec()])
+        );
+        assert!(
+            key_scan
+                .values
+                .contains(&vec![b"A".to_vec(), b"-".to_vec()])
+        );
     }
 
     #[test]

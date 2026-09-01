@@ -76,7 +76,7 @@ shape witness <query|last|count> [OPTIONS]
 
 ### Flags (v0.1 — core)
 
-- `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage). v0.1 supports a single column only. Composite keys (e.g. `loan_id + property_id + begin_date`) are scoped via `--profile`, which can declare a multi-column `key:` list — deferred until profile support ships.
+- `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage). The CLI flag accepts one column. An active profile may declare an ordered multi-column `key:` list (for example, `loan_id + property_id + begin_date`); shape evaluates the complete tuple.
 - `--delimiter <delim>`: force CSV delimiter for both files (same accepted values as rvl)
 - `--json`: machine output (stable schema; no human formatting)
 - `--no-witness`: suppress witness ledger recording for this run
@@ -198,27 +198,29 @@ No other outcomes.
 
 ### Key Viability
 
-**Question:** Is the key column suitable for row alignment?
+**Question:** Is the key column or ordered composite key suitable for row alignment?
 
 **Implementation:**
-1. Only checked when `--key` is provided. If no `--key`, this check is null in JSON and omitted in human output.
-2. Verify the key column exists in both files' headers (after normalization, and after `column_registry` canonicalization when a registry-backed profile is active). If not found → the check **fails** (status `"fail"`) with a reason like `"Key viability: loan_id not found in new file"`. This is INCOMPATIBLE, not a refusal — the files parsed fine, the key just doesn't exist.
-3. Scan all rows in both files (part of the single-pass scan)
-4. Check: key values are non-empty (after ASCII-trim) and unique within each file
-5. Compute coverage: `key_overlap / max(keys_old, keys_new)`. If both key sets are empty, coverage = 0.0.
+1. Checked when `--key` is provided or the active profile declares a non-empty `key:` list. If neither supplies a key, this check is null in JSON and omitted in human output.
+2. Verify every ordered key component exists in both files' headers (after normalization, and after `column_registry` canonicalization when a registry-backed profile is active). If a component is not found → the check **fails** (status `"fail"`) with a reason like `"Key viability: loan_id not found in new file"`. This is INCOMPATIBLE, not a refusal — the files parsed fine, the key just doesn't exist.
+3. Scan all rows in both files (part of the single-pass scan).
+4. ASCII-trim each component. A row is incomplete when **any** component is empty after trimming. Missing-value tokens such as `NA`, `N/A`, `NULL`, `NAN`, `NONE`, and `-` are ordinary key bytes; only an actually empty component increments `empty_count`.
+5. Preserve component boundaries structurally and check uniqueness on the complete ordered tuple. Never flatten components with a sentinel byte: arbitrary CSV bytes could make distinct tuples collide.
+6. Compute coverage: `key_overlap / max(keys_old, keys_new)`. If both key sets are empty, coverage = 0.0.
 
-**Pass condition:** key column exists in both files AND is unique in both AND has no empty values
+**Pass condition:** every key component exists in both files AND complete tuples are unique in both AND no row has an empty component
 
 **Output fields:**
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `status` | string | `"pass"` or `"fail"` |
-| `key_column` | string | Encoded column name |
-| `found_old` | bool | Key column exists in old file's headers |
-| `found_new` | bool | Key column exists in new file's headers |
-| `unique_old` | bool? | No duplicates AND no empty/missing values in old (null if key not found in old) |
-| `unique_new` | bool? | No duplicates AND no empty/missing values in new (null if key not found in new) |
+| `key_column` | string | Display label; a single encoded name or encoded component names joined with ` + ` |
+| `key_columns` | string[]? | Authoritative ordered encoded component list; emitted for composite keys |
+| `found_old` | bool | Every key component exists in old file's headers |
+| `found_new` | bool | Every key component exists in new file's headers |
+| `unique_old` | bool? | No duplicate tuples AND no empty components in old (null if key not found in old) |
+| `unique_new` | bool? | No duplicate tuples AND no empty components in new (null if key not found in new) |
 | `coverage` | f64? | Key overlap ratio (null if key not found in either file) |
 
 ### Row Granularity
@@ -227,8 +229,8 @@ No other outcomes.
 
 **Implementation:**
 1. Count rows in both files
-2. If `--key` is provided: compute key set intersection and differences
-3. If no `--key`: report row counts only (overlap fields are null)
+2. If a CLI or profile key is active: compute complete-tuple set intersection and differences
+3. If no key is active: report row counts only (overlap fields are null)
 
 **Pass condition:** Always passes — this check is informational only. Agents and policies interpret the counts.
 
@@ -269,7 +271,7 @@ No other outcomes.
 | Check | Pass condition | Notes |
 |-------|---------------|-------|
 | `schema_overlap` | `overlap_ratio > 0` (at least 1 common column) | Profiles override: when provided, overlap is measured against `include_columns` |
-| `key_viability` | Key exists in both files, is unique in both, and has no empty values | Only checked when `--key` is provided |
+| `key_viability` | Every component exists in both files, complete tuples are unique in both, and no component is empty | Checked for `--key` or a profile key |
 | `row_granularity` | Always passes — reports row/key counts but does not gate | Agents or policies interpret the counts |
 | `type_consistency` | No columns changed from numeric to non-numeric or vice versa | Only checked on columns common to both files |
 
@@ -421,10 +423,10 @@ All domain outcomes emit exactly one JSON object on stdout. Every field is alway
 
 - `profile_id`, `profile_sha256`: null unless `--profile` / `--profile-id` used
 - `input_verification`: null unless `--lock` used
-- `key_viability`: null if no `--key` provided
-- `key_viability.unique_old`, `unique_new`: null if key column not found in that file
-- `key_viability.coverage`: null if key column not found in either file
-- `row_granularity.key_overlap`, `keys_old_only`, `keys_new_only`: null if no `--key` or if key not found in either file
+- `key_viability`: null if neither `--key` nor the active profile provides a key
+- `key_viability.unique_old`, `unique_new`: null if any key component is not found in that file
+- `key_viability.coverage`: null if the complete key is not found in either file
+- `row_granularity.key_overlap`, `keys_old_only`, `keys_new_only`: null if no key is active or if any component is missing in either file
 - `row_granularity.rows_old`, `rows_new`: always present
 - `checks`: null when outcome is REFUSAL
 - `reasons`: empty `[]` when COMPATIBLE, non-empty when INCOMPATIBLE, null when REFUSAL
@@ -940,9 +942,9 @@ pub struct ScanResult {
 }
 
 pub struct KeyScan {
-    pub values: HashSet<Vec<u8>>,   // all distinct key values seen
+    pub values: HashSet<Vec<Vec<u8>>>, // distinct ordered key-component tuples
     pub duplicate_count: u64,        // number of rows where key was already seen
-    pub empty_count: u64,            // rows where key is empty/missing after trim
+    pub empty_count: u64,            // rows with any empty component after trim
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1040,10 +1042,10 @@ fn scan_file(
     data_offset: usize,
     dialect: &Dialect,
     common_column_indices: &[usize],  // indices into this file's headers
-    key_column_index: Option<usize>,
+    key_column_indices: &[usize],
 ) -> Result<ScanResult, RefusalPayload> {
     let mut row_count: u64 = 0;
-    let mut key_scan: Option<KeyScan> = key_column_index.map(|_| KeyScan::new());
+    let mut key_scan = (!key_column_indices.is_empty()).then(KeyScan::new);
     let mut classifiers: Vec<NumericClassifier> = vec![NumericClassifier::new(); common_column_indices.len()];
 
     // Stream records using csv crate's ByteRecord iterator
@@ -1057,11 +1059,14 @@ fn scan_file(
         row_count += 1;
 
         // Key tracking
-        if let (Some(idx), Some(ref mut ks)) = (key_column_index, &mut key_scan) {
-            let key_value = ascii_trim(record.get(idx));
-            if is_missing(key_value) {
+        if let Some(ref mut ks) = key_scan {
+            let key_value: Vec<Vec<u8>> = key_column_indices
+                .iter()
+                .map(|&idx| ascii_trim(record.get(idx).unwrap_or(&[])).to_vec())
+                .collect();
+            if key_value.iter().any(Vec::is_empty) {
                 ks.empty_count += 1;
-            } else if !ks.values.insert(key_value.to_vec()) {
+            } else if !ks.values.insert(key_value) {
                 ks.duplicate_count += 1;
             }
         }
@@ -1081,7 +1086,7 @@ fn scan_file(
 }
 ```
 
-**Memory profile:** Both files are loaded fully into memory (steps 3 and 7 read entire files into `Vec<u8>`), so baseline memory is O(F_old + F_new) where F is file size. Beyond that, the only growing structure is the key HashSet: O(K) where K is the number of distinct key values. Column classifiers are O(1) each (two booleans). Row records are never stored — the csv reader streams over the in-memory byte slice.
+**Memory profile:** Both files are loaded fully into memory (steps 3 and 7 read entire files into `Vec<u8>`), so baseline memory is O(F_old + F_new) where F is file size. Beyond that, the only growing structure is the key HashSet: O(K × C) where K is the number of distinct keys and C is the number of key components. Column classifiers are O(1) each (two booleans). Row records are never stored — the csv reader streams over the in-memory byte slice.
 
 **NumericClassifier:**
 
@@ -1113,11 +1118,11 @@ impl NumericClassifier {
 
 ### Key overlap computation
 
-After scanning both files, if `--key` is provided AND key was found in both files (both key_scans are Some), compute key set overlap:
+After scanning both files, if a key is active AND every component was found in both files (both key scans are `Some`), compute complete-tuple set overlap:
 
 ```rust
-// Only computed when key was found in both files (both key_scans are Some).
-// When key is not found in either file, key_scan is None → skip overlap computation,
+// Only computed when every component was found in both files.
+// When a component is missing, key_scan is None → skip overlap computation,
 // and key_overlap/keys_old_only/keys_new_only are null in output.
 if let (Some(ks_old), Some(ks_new)) = (&scan_old.key_scan, &scan_new.key_scan) {
     let key_overlap = ks_old.values.intersection(&ks_new.values).count() as u64;
@@ -1153,9 +1158,9 @@ fn guard_input_bytes(input: &[u8]) -> Result<&[u8], RefusalPayload> {
 }
 ```
 
-### `--key` column matching
+### Key column matching
 
-The `--key <column>` value is matched against normalized headers byte-for-byte (case-sensitive, after ASCII-trim). The CLI value is UTF-8 encoded and compared directly against each normalized header as bytes. If no header matches, the check fails with reason `"Key viability: {column} not found in {file} file"` — this is INCOMPATIBLE, not a refusal.
+The `--key <column>` value and every ordered component from a profile key are matched against normalized headers byte-for-byte (case-sensitive, after ASCII-trim). The CLI value is UTF-8 encoded and compared directly against each normalized header as bytes. If any component has no matching header, the check fails with reason `"Key viability: {column} not found in {file} file"` — this is INCOMPATIBLE, not a refusal.
 
 ### Header normalization
 
@@ -1299,7 +1304,7 @@ Provide basic test fixtures in `tests/fixtures/`:
 ### Test categories
 
 - **Schema overlap tests:** matching columns, partial overlap, zero overlap, profile-scoped overlap, registry-backed canonical overlap
-- **Key viability tests:** unique keys, duplicate keys, empty keys, missing key column
+- **Key viability tests:** unique keys, duplicate complete tuples, repeated first components with distinct later components, any empty component, separator-byte collision resistance, missing key columns, and missing-token text used as ordinary key bytes
 - **Row granularity tests:** same row count, different row count, key overlap
 - **Type consistency tests:** consistent types, type shifts, all-missing columns
 - **Delimiter tests:** auto-detection, `sep=` directive, `--delimiter` forced

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::checks::suite::CheckStatus;
 use crate::scan::KeyScan;
 
@@ -34,12 +32,9 @@ pub fn evaluate_row_granularity(
 }
 
 pub fn compute_key_overlap_metrics(old: &KeyScan, new: &KeyScan) -> (u64, u64, u64) {
-    let old_values: HashSet<&[u8]> = old.values.iter().map(Vec::as_slice).collect();
-    let new_values: HashSet<&[u8]> = new.values.iter().map(Vec::as_slice).collect();
-
-    let overlap = old_values.intersection(&new_values).count() as u64;
-    let old_only = old_values.len() as u64 - overlap;
-    let new_only = new_values.len() as u64 - overlap;
+    let overlap = old.values.intersection(&new.values).count() as u64;
+    let old_only = old.values.len() as u64 - overlap;
+    let new_only = new.values.len() as u64 - overlap;
     (overlap, old_only, new_only)
 }
 
@@ -78,12 +73,16 @@ mod tests {
     #[test]
     fn computes_key_overlap_old_only_and_new_only_counts() {
         let old = KeyScan {
-            values: HashSet::from([b"A".to_vec(), b"B".to_vec(), b"C".to_vec()]),
+            values: HashSet::from([
+                vec![b"A".to_vec()],
+                vec![b"B".to_vec()],
+                vec![b"C".to_vec()],
+            ]),
             duplicate_count: 0,
             empty_count: 0,
         };
         let new = KeyScan {
-            values: HashSet::from([b"B".to_vec(), b"D".to_vec()]),
+            values: HashSet::from([vec![b"B".to_vec()], vec![b"D".to_vec()]]),
             duplicate_count: 0,
             empty_count: 0,
         };

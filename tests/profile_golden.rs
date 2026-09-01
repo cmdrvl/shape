@@ -172,6 +172,95 @@ fn golden_json_profile_composite_key() {
     assert_eq!(parse_json_output(&result.stdout), expected);
 }
 
+#[test]
+fn profile_composite_key_uses_structural_tuples_and_requires_every_component() {
+    let workspace = unique_capsule_dir("profile-composite-structure");
+    fs::create_dir_all(&workspace).expect("create workspace");
+    let old_path = workspace.join("old.csv");
+    let new_path = workspace.join("new.csv");
+    let profile_path = workspace.join("profile.yaml");
+    fs::write(
+        &profile_path,
+        "profile_id: composite.v0\nprofile_sha256: sha256:test-composite\ninclude_columns:\n  - first\n  - second\n  - amount\nkey:\n  - first\n  - second\n",
+    )
+    .expect("write profile");
+
+    let distinct_tuples =
+        b"first,second,amount\na\xff,b,1\na,\xffb,2\nrepeat,one,3\nrepeat,two,4\nNA,NULL,5\n";
+    fs::write(&old_path, distinct_tuples).expect("write collision-resistant old fixture");
+    fs::write(&new_path, distinct_tuples).expect("write collision-resistant new fixture");
+
+    let old = old_path.to_string_lossy().into_owned();
+    let new = new_path.to_string_lossy().into_owned();
+    let profile = profile_path.to_string_lossy().into_owned();
+    let compatible = run_shape([
+        old.as_str(),
+        new.as_str(),
+        "--delimiter",
+        "comma",
+        "--json",
+        "--no-witness",
+        "--profile",
+        profile.as_str(),
+    ]);
+    let payload = parse_json_output(&compatible.stdout);
+    assert_eq!(compatible.status, 0);
+    assert_eq!(payload["outcome"], "COMPATIBLE");
+    assert_eq!(payload["checks"]["key_viability"]["unique_old"], true);
+    assert_eq!(payload["checks"]["key_viability"]["unique_new"], true);
+    assert_eq!(payload["checks"]["row_granularity"]["key_overlap"], 5);
+
+    fs::write(&old_path, b"first,second,amount\nA,1,10\nA,1,20\nA,2,30\n")
+        .expect("write duplicate tuple fixture");
+    fs::write(&new_path, b"first,second,amount\nA,1,10\nA,2,20\nA,3,30\n")
+        .expect("write unique tuple fixture");
+    let duplicate = run_shape([
+        old.as_str(),
+        new.as_str(),
+        "--delimiter",
+        "comma",
+        "--json",
+        "--no-witness",
+        "--profile",
+        profile.as_str(),
+    ]);
+    let payload = parse_json_output(&duplicate.stdout);
+    assert_eq!(duplicate.status, 1);
+    assert_eq!(payload["outcome"], "INCOMPATIBLE");
+    assert_eq!(payload["checks"]["key_viability"]["unique_old"], false);
+    assert!(
+        payload["reasons"][0]
+            .as_str()
+            .is_some_and(|reason| reason.contains("1 duplicate value in old file"))
+    );
+
+    fs::write(&old_path, b"first,second,amount\nA,,10\nX,Y,20\n")
+        .expect("write incomplete tuple fixture");
+    fs::write(&new_path, b"first,second,amount\nA,B,10\nX,Y,20\n")
+        .expect("write complete tuple fixture");
+    let incomplete = run_shape([
+        old.as_str(),
+        new.as_str(),
+        "--delimiter",
+        "comma",
+        "--json",
+        "--no-witness",
+        "--profile",
+        profile.as_str(),
+    ]);
+    let payload = parse_json_output(&incomplete.stdout);
+    assert_eq!(incomplete.status, 1);
+    assert_eq!(payload["outcome"], "INCOMPATIBLE");
+    assert_eq!(payload["checks"]["key_viability"]["unique_old"], false);
+    assert!(
+        payload["reasons"][0]
+            .as_str()
+            .is_some_and(|reason| reason.contains("1 empty value in old file"))
+    );
+
+    let _ = fs::remove_dir_all(workspace);
+}
+
 // ---------------------------------------------------------------------------
 // 3. golden_human_profile_scoped_output
 // ---------------------------------------------------------------------------

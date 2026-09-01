@@ -434,7 +434,11 @@ mod tests {
         let old_scan = ScanResult {
             row_count: 3,
             key_scan: Some(KeyScan {
-                values: HashSet::from([b"L1".to_vec(), b"L2".to_vec(), b"L3".to_vec()]),
+                values: HashSet::from([
+                    vec![b"L1".to_vec()],
+                    vec![b"L2".to_vec()],
+                    vec![b"L3".to_vec()],
+                ]),
                 duplicate_count: 0,
                 empty_count: 0,
             }),
@@ -446,7 +450,7 @@ mod tests {
         let new_scan = ScanResult {
             row_count: 2,
             key_scan: Some(KeyScan {
-                values: HashSet::from([b"L2".to_vec(), b"L3".to_vec()]),
+                values: HashSet::from([vec![b"L2".to_vec()], vec![b"L3".to_vec()]]),
                 duplicate_count: 0,
                 empty_count: 0,
             }),
@@ -514,7 +518,7 @@ mod tests {
         let old_scan = ScanResult {
             row_count: 2,
             key_scan: Some(KeyScan {
-                values: HashSet::from([b"L1".to_vec(), b"L2".to_vec()]),
+                values: HashSet::from([vec![b"L1".to_vec()], vec![b"L2".to_vec()]]),
                 duplicate_count: 0,
                 empty_count: 0,
             }),

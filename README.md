@@ -98,7 +98,7 @@ Types:     12 numeric columns, 0 type shifts
 
 **How to read this:**
 - **Schema** — how many columns are shared between the two files.
-- **Key** — whether the key column is unique and non-null in both files.
+- **Key** — whether the complete key is unique in both files and every component is populated.
 - **Rows** — row counts and key overlap (how many keys appear in both files).
 - **Types** — whether any columns changed from numeric to non-numeric or vice versa.
 
@@ -158,11 +158,13 @@ Measures how many columns are shared between the two files.
 
 ### Key Viability
 
-Checks whether the key column is suitable for row alignment.
+Checks whether a CLI key column or an ordered composite key from a profile is suitable for row alignment.
 
-- **Pass condition:** key is unique in both files with no nulls
-- Only checked when `--key` is provided
-- Reports: `key_column`, `unique_old`, `unique_new`, `coverage`
+- **Pass condition:** the complete key tuple is unique in both files and every component is non-empty after ASCII trimming
+- Checked when `--key` is provided or the active profile declares a `key:` list
+- Composite components remain structurally separate, so arbitrary CSV bytes cannot create delimiter collisions
+- Missing tokens such as `NA` are ordinary key bytes; they are not treated as empty components
+- Reports: display label `key_column`, authoritative ordered `key_columns` for composites, `unique_old`, `unique_new`, and `coverage`
 - When a registry-backed profile is active, both profile keys and the CLI `--key` value resolve against canonical column IDs before header lookup.
 
 ### Row Granularity
@@ -657,8 +659,8 @@ A single JSON object on stdout. If the process fails before domain evaluation (e
 - `refusal` is `null` unless outcome is `REFUSAL`.
 - `profile_id` echoes `--profile-id` when provided, otherwise `null`.
 - `profile_sha256` and `input_verification` are reserved v0 contract fields and remain `null` in current runtime behavior.
-- `key_viability` is `null` when `--key` is not provided.
-- `key_viability.unique_old` / `unique_new` are `null` if the key column is missing in that file.
+- `key_viability` is `null` when neither `--key` nor the active profile provides a key.
+- `key_viability.unique_old` / `unique_new` are `null` if the complete key is unavailable in that file.
 - `key_viability.coverage` is `null` when key overlap is not computable.
 - `row_granularity.key_overlap` / `keys_old_only` / `keys_new_only` are `null` when key metrics are unavailable.
 
