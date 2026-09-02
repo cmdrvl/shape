@@ -87,6 +87,7 @@ impl WitnessRecord {
             "profile_id": args.profile_id.clone(),
             "resolved_profile_id": result.resolved_profile_id.clone(),
             "resolved_profile_sha256": result.resolved_profile_sha256.clone(),
+            "column_registry_hash": result.resolved_registry_hash.clone(),
             "lock": lock,
             "max_rows": args.max_rows,
             "max_bytes": args.max_bytes,
@@ -190,6 +191,7 @@ mod tests {
             output: "shape output".to_owned(),
             resolved_profile_id: Some("profile.v0".to_owned()),
             resolved_profile_sha256: Some("sha256:abc".to_owned()),
+            resolved_registry_hash: Some("blake3:def".to_owned()),
         }
     }
 

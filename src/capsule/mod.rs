@@ -290,7 +290,7 @@ fn write_profile_registry_artifact(
         path: PROFILE_REGISTRY_ARTIFACT_PATH,
         source_path: Some(path_to_string(source_path.as_path())),
         bytes: Some(bytes),
-        blake3: None,
+        blake3: profile.column_registry_hash.clone(),
         source_error: None,
     })
 }

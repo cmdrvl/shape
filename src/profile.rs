@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::normalize::headers::{ascii_trim, canonicalize_header_identifier};
+use crate::witness::hash::hash_bytes;
 
 const COLUMN_NAME_CANONICAL_TYPE: &str = "column_name";
 
@@ -27,6 +28,10 @@ pub struct ResolvedProfile {
     pub source_path: PathBuf,
     pub resolved_registry_path: Option<PathBuf>,
     pub column_aliases: Option<HashMap<Vec<u8>, Vec<u8>>>,
+    /// blake3 over the registry files that fed `column_aliases`, framed as
+    /// `(relative_path, len, bytes)` in load order. Matches rvl's framing so
+    /// both tools report the same identity for the same registry directory.
+    pub column_registry_hash: Option<String>,
 }
 
 impl ResolvedProfile {
@@ -88,19 +93,24 @@ pub fn load_profile_from_path(path: &Path) -> Result<ResolvedProfile, ResolveErr
     })?;
 
     let column_registry = parsed.column_registry.clone();
-    let (column_aliases, resolved_registry_path) = match column_registry.as_deref() {
-        Some(registry_ref) => {
-            let registry_path = resolve_registry_path(path, registry_ref);
-            let aliases = load_column_registry_aliases(&registry_path).map_err(|error| {
-                ResolveError::Invalid {
-                    selector: selector.clone(),
-                    error,
-                }
-            })?;
-            (Some(aliases), Some(registry_path))
-        }
-        None => (None, None),
-    };
+    let (column_aliases, resolved_registry_path, column_registry_hash) =
+        match column_registry.as_deref() {
+            Some(registry_ref) => {
+                let registry_path = resolve_registry_path(path, registry_ref);
+                let loaded = load_column_registry_aliases(&registry_path).map_err(|error| {
+                    ResolveError::Invalid {
+                        selector: selector.clone(),
+                        error,
+                    }
+                })?;
+                (
+                    Some(loaded.aliases),
+                    Some(registry_path),
+                    Some(loaded.content_hash),
+                )
+            }
+            None => (None, None, None),
+        };
 
     let mut include_columns = Vec::new();
     let mut include_seen = HashSet::new();
@@ -132,6 +142,7 @@ pub fn load_profile_from_path(path: &Path) -> Result<ResolvedProfile, ResolveErr
         source_path: path.to_path_buf(),
         resolved_registry_path,
         column_aliases,
+        column_registry_hash,
     })
 }
 
@@ -298,7 +309,12 @@ fn resolve_registry_path(anchor_path: &Path, registry_ref: &str) -> PathBuf {
     }
 }
 
-fn load_column_registry_aliases(registry_dir: &Path) -> Result<HashMap<Vec<u8>, Vec<u8>>, String> {
+struct LoadedColumnRegistry {
+    aliases: HashMap<Vec<u8>, Vec<u8>>,
+    content_hash: String,
+}
+
+fn load_column_registry_aliases(registry_dir: &Path) -> Result<LoadedColumnRegistry, String> {
     if !registry_dir.exists() || !registry_dir.is_dir() {
         return Err(format!(
             "registry directory not found: {}",
@@ -309,6 +325,8 @@ fn load_column_registry_aliases(registry_dir: &Path) -> Result<HashMap<Vec<u8>, 
     let registry_json_path = registry_dir.join("registry.json");
     let registry_json = fs::read_to_string(&registry_json_path)
         .map_err(|error| format!("{}: {error}", registry_json_path.display()))?;
+    let mut framed = Vec::new();
+    frame_registry_file(&mut framed, "registry.json", registry_json.as_bytes());
     serde_json::from_str::<serde_json::Value>(&registry_json).map_err(|error| {
         format!(
             "failed to parse registry definition '{}': {error}",
@@ -332,6 +350,11 @@ fn load_column_registry_aliases(registry_dir: &Path) -> Result<HashMap<Vec<u8>, 
     for path in mapping_paths {
         let content =
             fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let relative_path = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        frame_registry_file(&mut framed, &relative_path, content.as_bytes());
         let entries: Vec<MappingEntry> = serde_json::from_str(&content).map_err(|error| {
             format!("failed to parse mapping file '{}': {error}", path.display())
         })?;
@@ -356,7 +379,21 @@ fn load_column_registry_aliases(registry_dir: &Path) -> Result<HashMap<Vec<u8>, 
         }
     }
 
-    Ok(aliases)
+    Ok(LoadedColumnRegistry {
+        aliases,
+        content_hash: format!("blake3:{}", hash_bytes(&framed)),
+    })
+}
+
+/// Length-framed `(relative_path, len, bytes)` record, identical to rvl's
+/// `registry_content_hash` framing.
+fn frame_registry_file(framed: &mut Vec<u8>, relative_path: &str, bytes: &[u8]) {
+    framed.extend_from_slice(relative_path.as_bytes());
+    framed.push(0);
+    framed.extend_from_slice(bytes.len().to_string().as_bytes());
+    framed.push(0);
+    framed.extend_from_slice(bytes);
+    framed.push(0xff);
 }
 
 fn strip_comment(raw: &str) -> &str {
@@ -437,6 +474,35 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("shape_test_profile_{id}_{seq}"));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn registry_hash_is_deterministic_and_tracks_registry_bytes() {
+        let dir = temp_dir();
+        let registry_dir = write_registry_fixture(&dir);
+        let path = dir.join("profile.yaml");
+        std::fs::write(
+            &path,
+            "profile_id: csv.demo.v0\ncolumn_registry: registry\ninclude_columns:\n  - loan_id\n",
+        )
+        .unwrap();
+
+        let first = load_profile_from_path(&path).expect("profile should load");
+        let second = load_profile_from_path(&path).expect("profile should load");
+        let hash = first
+            .column_registry_hash
+            .clone()
+            .expect("registry-backed profile carries a registry hash");
+        assert!(hash.starts_with("blake3:"));
+        assert_eq!(second.column_registry_hash.as_deref(), Some(hash.as_str()));
+
+        std::fs::write(
+            registry_dir.join("aliases.json"),
+            r#"[{"input":"Loan #","canonical_id":"loan_id","canonical_type":"column_name","rule_id":"r2"}]"#,
+        )
+        .unwrap();
+        let mutated = load_profile_from_path(&path).expect("profile should load");
+        assert_ne!(mutated.column_registry_hash.as_deref(), Some(hash.as_str()));
     }
 
     fn write_registry_fixture(dir: &Path) -> PathBuf {
@@ -811,6 +877,7 @@ key:
             source_path: PathBuf::new(),
             resolved_registry_path: None,
             column_aliases: None,
+            column_registry_hash: None,
         };
         let set = profile.include_set();
         assert_eq!(set.len(), 2);
@@ -832,6 +899,7 @@ key:
             source_path: path.clone(),
             resolved_registry_path: None,
             column_aliases: None,
+            column_registry_hash: None,
         };
         std::fs::write(&path, render_profile_yaml(&profile)).unwrap();
 

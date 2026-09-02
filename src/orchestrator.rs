@@ -25,6 +25,7 @@ pub struct PipelineResult {
     pub output: String,
     pub resolved_profile_id: Option<String>,
     pub resolved_profile_sha256: Option<String>,
+    pub resolved_registry_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,6 +148,7 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
                 output,
                 resolved_profile_id: None,
                 resolved_profile_sha256: None,
+                resolved_registry_hash: None,
             });
         }
     };
@@ -154,6 +156,9 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
     let resolved_profile_sha256 = resolved_profile
         .as_ref()
         .and_then(|p| p.profile_sha256.clone());
+    let resolved_registry_hash = resolved_profile
+        .as_ref()
+        .and_then(|p| p.column_registry_hash.clone());
 
     let profile_key_columns: Vec<Vec<u8>> = resolved_profile
         .as_ref()
@@ -193,6 +198,7 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
                 output,
                 resolved_profile_id,
                 resolved_profile_sha256,
+                resolved_registry_hash,
             });
         }
     };
@@ -219,6 +225,7 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         output,
         resolved_profile_id,
         resolved_profile_sha256,
+        resolved_registry_hash,
     })
 }
 

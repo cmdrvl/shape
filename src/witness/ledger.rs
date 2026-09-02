@@ -72,6 +72,7 @@ mod tests {
             output: "ok".to_owned(),
             resolved_profile_id: None,
             resolved_profile_sha256: None,
+            resolved_registry_hash: None,
         };
         let mut record =
             WitnessRecord::from_run(&args, &result, b"old", b"new", "old.csv", "new.csv");
