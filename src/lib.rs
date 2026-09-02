@@ -97,6 +97,7 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
                             "properties": {
                                 "status": { "type": "string", "enum": ["pass", "fail"] },
                                 "key_column": { "type": "string" },
+                                "key_columns": { "type": "array", "items": { "type": "string" } },
                                 "found_old": { "type": "boolean" },
                                 "found_new": { "type": "boolean" },
                                 "unique_old": { "type": ["boolean", "null"] },

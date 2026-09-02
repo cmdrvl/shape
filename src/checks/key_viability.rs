@@ -31,6 +31,8 @@ pub fn evaluate_key_viability(
 ) -> KeyViabilityResult {
     let found_old = found_components_old.iter().all(|&f| f);
     let found_new = found_components_new.iter().all(|&f| f);
+    let old_scan = old_scan.filter(|_| found_old);
+    let new_scan = new_scan.filter(|_| found_new);
 
     let unique_old = old_scan.map(is_unique_and_non_empty);
     let unique_new = new_scan.map(is_unique_and_non_empty);
@@ -206,5 +208,26 @@ mod tests {
         assert!(result.found_old);
         assert!(!result.found_new);
         assert_eq!(result.found_components_new, vec![true, false]);
+    }
+
+    #[test]
+    fn missing_composite_component_suppresses_scan_derived_metrics_for_that_file() {
+        let old = key_scan(&[b"A1"], 0, 0);
+        let new = key_scan(&[b"A1"], 0, 0);
+
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec(), b"unit".to_vec()],
+            vec![true, true],
+            vec![true, false],
+            Some(&old),
+            Some(&new),
+        );
+
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert_eq!(result.unique_old, Some(true));
+        assert_eq!(result.unique_new, None);
+        assert_eq!(result.duplicate_values_new, None);
+        assert_eq!(result.empty_values_new, None);
+        assert_eq!(result.coverage, None);
     }
 }

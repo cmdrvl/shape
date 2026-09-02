@@ -64,6 +64,10 @@ pub fn assemble_check_suite(
     include_set: Option<&HashSet<Vec<u8>>>,
 ) -> CheckSuite {
     let schema_overlap = evaluate_schema_overlap(old_headers, new_headers, include_set);
+    let key_active = !key_columns.is_empty();
+    let complete_key_found = key_active
+        && keys_found_old.iter().all(|&found| found)
+        && keys_found_new.iter().all(|&found| found);
     let key_viability = if key_columns.is_empty() {
         None
     } else {
@@ -76,9 +80,13 @@ pub fn assemble_check_suite(
         ))
     };
 
-    let key_metrics = match (old_scan.key_scan.as_ref(), new_scan.key_scan.as_ref()) {
-        (Some(old), Some(new)) => Some(compute_key_overlap_metrics(old, new)),
-        _ => None,
+    let key_metrics = if complete_key_found {
+        match (old_scan.key_scan.as_ref(), new_scan.key_scan.as_ref()) {
+            (Some(old), Some(new)) => Some(compute_key_overlap_metrics(old, new)),
+            _ => None,
+        }
+    } else {
+        None
     };
 
     let row_granularity =
@@ -116,24 +124,34 @@ pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
     if let Some(key) = suite.key_viability.as_ref()
         && key.status == CheckStatus::Fail
     {
-        let key_name = String::from_utf8_lossy(&key.key_column);
         if !key.found_old {
-            reasons.push(format!("Key viability: {} not found in old file", key_name));
+            push_missing_key_component_reasons(
+                &mut reasons,
+                &key.key_columns,
+                &key.found_components_old,
+                "old",
+            );
         }
         if !key.found_new {
-            reasons.push(format!("Key viability: {} not found in new file", key_name));
+            push_missing_key_component_reasons(
+                &mut reasons,
+                &key.key_columns,
+                &key.found_components_new,
+                "new",
+            );
         }
         if key.found_old && key.found_new {
+            let key_name = composite_key_name(key);
             push_key_viability_count_reasons(
                 &mut reasons,
-                key_name.as_ref(),
+                &key_name,
                 "old",
                 key.duplicate_values_old,
                 key.empty_values_old,
             );
             push_key_viability_count_reasons(
                 &mut reasons,
-                key_name.as_ref(),
+                &key_name,
                 "new",
                 key.duplicate_values_new,
                 key.empty_values_new,
@@ -154,6 +172,34 @@ pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
     }
 
     reasons
+}
+
+fn push_missing_key_component_reasons(
+    reasons: &mut Vec<String>,
+    key_columns: &[Vec<u8>],
+    found_components: &[bool],
+    file_label: &str,
+) {
+    for (column, found) in key_columns.iter().zip(found_components) {
+        if !found {
+            let key_name = String::from_utf8_lossy(column);
+            reasons.push(format!(
+                "Key viability: {key_name} not found in {file_label} file"
+            ));
+        }
+    }
+}
+
+fn composite_key_name(key: &KeyViabilityResult) -> String {
+    if key.key_columns.len() > 1 {
+        key.key_columns
+            .iter()
+            .map(|column| String::from_utf8_lossy(column).into_owned())
+            .collect::<Vec<_>>()
+            .join(" + ")
+    } else {
+        String::from_utf8_lossy(&key.key_column).into_owned()
+    }
 }
 
 fn push_key_viability_count_reasons(
@@ -284,6 +330,36 @@ mod tests {
         assert_eq!(
             build_reasons(&suite),
             vec!["Key viability: loan_id not found in new file".to_string()]
+        );
+    }
+
+    #[test]
+    fn build_reasons_names_missing_composite_component() {
+        let suite = CheckSuite {
+            schema_overlap: schema_pass(),
+            key_viability: Some(KeyViabilityResult {
+                status: CheckStatus::Fail,
+                key_column: b"loan_id".to_vec(),
+                key_columns: vec![b"loan_id".to_vec(), b"property_id".to_vec()],
+                found_old: true,
+                found_new: false,
+                found_components_old: vec![true, true],
+                found_components_new: vec![true, false],
+                unique_old: Some(true),
+                unique_new: None,
+                duplicate_values_old: Some(0),
+                duplicate_values_new: None,
+                empty_values_old: Some(0),
+                empty_values_new: None,
+                coverage: None,
+            }),
+            row_granularity: row_pass(),
+            type_consistency: type_pass(),
+        };
+
+        assert_eq!(
+            build_reasons(&suite),
+            vec!["Key viability: property_id not found in new file".to_string()]
         );
     }
 
@@ -545,6 +621,63 @@ mod tests {
         assert_eq!(
             suite.key_viability.as_ref().map(|k| k.found_new),
             Some(false)
+        );
+        assert_eq!(suite.row_granularity.key_overlap, None);
+        assert_eq!(suite.row_granularity.keys_old_only, None);
+        assert_eq!(suite.row_granularity.keys_new_only, None);
+    }
+
+    #[test]
+    fn assemble_suite_with_partial_composite_key_keeps_row_key_metrics_none() {
+        let old_headers = vec![
+            b"loan_id".to_vec(),
+            b"property_id".to_vec(),
+            b"amount".to_vec(),
+        ];
+        let new_headers = vec![b"loan_id".to_vec(), b"amount".to_vec()];
+        let old_scan = ScanResult {
+            row_count: 2,
+            key_scan: Some(KeyScan {
+                values: HashSet::from([
+                    vec![b"L1".to_vec(), b"P1".to_vec()],
+                    vec![b"L2".to_vec(), b"P2".to_vec()],
+                ]),
+                duplicate_count: 0,
+                empty_count: 0,
+            }),
+            column_types: vec![
+                ColumnClassification::NonNumeric,
+                ColumnClassification::Numeric,
+            ],
+        };
+        let new_scan = ScanResult {
+            row_count: 2,
+            key_scan: Some(KeyScan {
+                values: HashSet::from([vec![b"L1".to_vec()], vec![b"L3".to_vec()]]),
+                duplicate_count: 0,
+                empty_count: 0,
+            }),
+            column_types: vec![
+                ColumnClassification::NonNumeric,
+                ColumnClassification::Numeric,
+            ],
+        };
+
+        let suite = assemble_check_suite(
+            &old_headers,
+            &new_headers,
+            vec![b"loan_id".to_vec(), b"property_id".to_vec()],
+            vec![true, true],
+            vec![true, false],
+            &old_scan,
+            &new_scan,
+            None,
+        );
+
+        assert!(suite.key_viability.is_some());
+        assert_eq!(
+            suite.key_viability.as_ref().map(|key| key.unique_new),
+            Some(None)
         );
         assert_eq!(suite.row_granularity.key_overlap, None);
         assert_eq!(suite.row_granularity.keys_old_only, None);

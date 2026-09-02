@@ -164,7 +164,7 @@ pub fn run(args: &Args) -> Result<PipelineResult, Box<dyn std::error::Error>> {
         .as_ref()
         .map(|p| p.key_columns.clone())
         .unwrap_or_default();
-    if !profile_key_columns.is_empty() && args.key.is_some() {
+    if !profile_key_columns.is_empty() && args.key.is_some() && !args.json {
         eprintln!("shape: profile key overrides --key flag");
     }
     let domain = match execute_pipeline(
@@ -303,14 +303,6 @@ fn execute_pipeline(
             .unwrap_or_default()
     };
 
-    let old_key_indices: Vec<usize> = key_columns
-        .iter()
-        .filter_map(|key| old_header_indices.get(key.as_slice()).copied())
-        .collect();
-    let new_key_indices: Vec<usize> = key_columns
-        .iter()
-        .filter_map(|key| new_header_indices.get(key.as_slice()).copied())
-        .collect();
     let keys_found_old: Vec<bool> = key_columns
         .iter()
         .map(|key| old_header_indices.contains_key(key.as_slice()))
@@ -319,6 +311,10 @@ fn execute_pipeline(
         .iter()
         .map(|key| new_header_indices.contains_key(key.as_slice()))
         .collect();
+    let old_key_indices =
+        key_indices_if_complete(&key_columns, &keys_found_old, &old_header_indices);
+    let new_key_indices =
+        key_indices_if_complete(&key_columns, &keys_found_new, &new_header_indices);
 
     let old_scan = scan_file(
         old_path,
@@ -499,6 +495,21 @@ fn common_column_indices(
     common_columns
         .iter()
         .filter_map(|column| header_indices.get(column.as_slice()).copied())
+        .collect()
+}
+
+fn key_indices_if_complete(
+    key_columns: &[Vec<u8>],
+    found_components: &[bool],
+    header_indices: &HashMap<Vec<u8>, usize>,
+) -> Vec<usize> {
+    if key_columns.is_empty() || !found_components.iter().all(|&found| found) {
+        return Vec::new();
+    }
+
+    key_columns
+        .iter()
+        .filter_map(|key| header_indices.get(key.as_slice()).copied())
         .collect()
 }
 

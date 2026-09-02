@@ -173,6 +173,63 @@ fn golden_json_profile_composite_key() {
 }
 
 #[test]
+fn schema_contract_describes_composite_key_columns() {
+    let schema_result = run_shape(["--schema"]);
+    assert_eq!(schema_result.status, 0);
+    assert!(
+        schema_result.stderr.trim().is_empty(),
+        "unexpected schema stderr: {}",
+        schema_result.stderr
+    );
+    let schema = parse_json_output(&schema_result.stdout);
+    let key_columns_schema =
+        &schema["properties"]["checks"]["properties"]["key_viability"]["properties"]["key_columns"];
+    assert_eq!(key_columns_schema["type"], "array");
+    assert_eq!(key_columns_schema["items"]["type"], "string");
+
+    let profile = profile_arg(PROFILE_RENT_ROLL);
+    let result = run_shape_with_fixtures(
+        RENT_ROLL_OLD,
+        RENT_ROLL_NEW,
+        &["--json", "--profile", &profile],
+    );
+    assert_eq!(result.status, 0);
+    let payload = parse_json_output(&result.stdout);
+    let key_columns = payload["checks"]["key_viability"]["key_columns"]
+        .as_array()
+        .expect("composite key payload should include key_columns");
+
+    assert_eq!(key_columns.len(), 2);
+    assert!(
+        key_columns.iter().all(Value::is_string),
+        "key_columns should satisfy emitted string-array schema: {key_columns:?}"
+    );
+}
+
+#[test]
+fn json_profile_key_override_suppresses_domain_warning() {
+    let profile = profile_arg(PROFILE_LOAN_TAPE);
+    let result = run_shape_with_fixtures(
+        BASIC_OLD,
+        BASIC_NEW,
+        &["--json", "--profile", &profile, "--key", "balance"],
+    );
+
+    assert_eq!(result.status, 0);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "json domain diagnostics must not be written to stderr: {}",
+        result.stderr
+    );
+    let payload = parse_json_output(&result.stdout);
+    assert_eq!(payload["outcome"], "COMPATIBLE");
+    assert_eq!(
+        payload["checks"]["key_viability"]["key_column"],
+        "u8:loan_id"
+    );
+}
+
+#[test]
 fn profile_composite_key_uses_structural_tuples_and_requires_every_component() {
     let workspace = unique_capsule_dir("profile-composite-structure");
     fs::create_dir_all(&workspace).expect("create workspace");
@@ -256,6 +313,64 @@ fn profile_composite_key_uses_structural_tuples_and_requires_every_component() {
         payload["reasons"][0]
             .as_str()
             .is_some_and(|reason| reason.contains("1 empty value in old file"))
+    );
+
+    let _ = fs::remove_dir_all(workspace);
+}
+
+#[test]
+fn profile_composite_key_missing_component_nulls_row_key_metrics() {
+    let workspace = unique_capsule_dir("profile-composite-missing-component");
+    fs::create_dir_all(&workspace).expect("create workspace");
+    let old_path = workspace.join("old.csv");
+    let new_path = workspace.join("new.csv");
+    let profile_path = workspace.join("profile.yaml");
+    fs::write(
+        &profile_path,
+        "profile_id: composite.v0\nprofile_sha256: sha256:test-composite\ninclude_columns:\n  - first\n  - second\n  - amount\nkey:\n  - first\n  - second\n",
+    )
+    .expect("write profile");
+    fs::write(&old_path, b"first,second,amount\nA,1,10\nB,2,20\n").expect("write old fixture");
+    fs::write(&new_path, b"first,amount\nA,10\nC,30\n").expect("write new fixture");
+
+    let old = old_path.to_string_lossy().into_owned();
+    let new = new_path.to_string_lossy().into_owned();
+    let profile = profile_path.to_string_lossy().into_owned();
+    let result = run_shape([
+        old.as_str(),
+        new.as_str(),
+        "--delimiter",
+        "comma",
+        "--json",
+        "--no-witness",
+        "--profile",
+        profile.as_str(),
+    ]);
+
+    assert_eq!(result.status, 1);
+    assert!(
+        result.stderr.trim().is_empty(),
+        "unexpected stderr: {}",
+        result.stderr
+    );
+    let payload = parse_json_output(&result.stdout);
+    assert_eq!(payload["outcome"], "INCOMPATIBLE");
+    assert_eq!(payload["checks"]["key_viability"]["found_old"], true);
+    assert_eq!(payload["checks"]["key_viability"]["found_new"], false);
+    assert_eq!(payload["checks"]["key_viability"]["unique_old"], true);
+    assert!(payload["checks"]["key_viability"]["unique_new"].is_null());
+    assert!(payload["checks"]["key_viability"]["coverage"].is_null());
+    assert!(payload["checks"]["row_granularity"]["key_overlap"].is_null());
+    assert!(payload["checks"]["row_granularity"]["keys_old_only"].is_null());
+    assert!(payload["checks"]["row_granularity"]["keys_new_only"].is_null());
+    assert!(
+        payload["reasons"]
+            .as_array()
+            .expect("reasons array")
+            .iter()
+            .any(|reason| reason.as_str() == Some("Key viability: second not found in new file")),
+        "missing component reason should name second: {}",
+        payload["reasons"]
     );
 
     let _ = fs::remove_dir_all(workspace);
