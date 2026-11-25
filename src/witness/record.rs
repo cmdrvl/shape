@@ -119,10 +119,17 @@ impl WitnessRecord {
 fn current_utc_iso8601() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    let elapsed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let total_seconds = elapsed.as_secs();
+    // SOURCE_DATE_EPOCH (reproducible-builds convention) replaces the wall clock.
+    let total_seconds = match std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+    {
+        Some(epoch) => epoch,
+        None => SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    };
 
     let days = total_seconds / 86_400;
     let time_of_day = total_seconds % 86_400;

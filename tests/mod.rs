@@ -157,7 +157,7 @@ fn cli_harness_describe_mode_emits_operator_json() {
         &result,
         "--describe should emit valid operator.json payload",
     );
-    assert_eq!(payload["schema_version"], "operator.v0");
+    assert_eq!(payload["schema_version"], "operator.v1");
     assert_eq!(payload["name"], "shape");
 }
 

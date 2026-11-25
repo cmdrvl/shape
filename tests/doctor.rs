@@ -38,16 +38,13 @@ fn top_level_robot_triage_is_single_call_json() {
     let value: serde_json::Value =
         serde_json::from_str(&result.stdout).expect("robot triage should be JSON");
 
-    assert_eq!(value["schema_version"], "shape.doctor.v1");
-    assert_eq!(value["summary"]["status"], "healthy");
-    assert_eq!(value["read_only"], true);
-    assert_eq!(
-        value["capabilities_url"],
-        "command:shape capabilities --json"
-    );
-    assert_eq!(
-        value["capabilities"]["agent_surfaces"]["robot_triage"]["command"],
-        "shape --robot-triage"
+    assert_eq!(value["schema_version"], "cmdrvl.doctor.v1");
+    assert_eq!(value["mode"], "triage");
+    assert_eq!(value["tool"], "shape");
+    assert_eq!(value["healthy"], true);
+    assert!(
+        !value["next_actions"].as_array().unwrap().is_empty(),
+        "triage must carry next_actions"
     );
 }
 
@@ -64,9 +61,8 @@ fn top_level_capabilities_json_declares_agent_surfaces() {
     let value: serde_json::Value =
         serde_json::from_str(&result.stdout).expect("capabilities should be JSON");
 
-    assert_eq!(value["schema_version"], "shape.doctor.capabilities.v1");
-    assert_eq!(value["tool"], "shape");
-    assert_eq!(value["read_only"], true);
+    assert_eq!(value["schema_version"], "operator.v1");
+    assert_eq!(value["name"], "shape");
     assert_eq!(value["fix_mode"]["available"], false);
     assert_eq!(
         value["agent_surfaces"]["capabilities"]["command"],
@@ -76,10 +72,7 @@ fn top_level_capabilities_json_declares_agent_surfaces() {
         value["agent_surfaces"]["robot_docs"]["command"],
         "shape robot-docs guide"
     );
-    assert_eq!(
-        value["side_effects"]["shape capabilities --json"]["uses_network"],
-        false
-    );
+    assert_eq!(value["side_effects"]["network"], false);
     assert_eq!(
         value["composition"]["role"],
         "structural_comparability_gate"
@@ -142,10 +135,10 @@ fn doctor_health_json_is_read_only_and_successful() {
     let value: serde_json::Value =
         serde_json::from_str(&result.stdout).expect("health should be JSON");
 
-    assert_eq!(value["schema_version"], "shape.doctor.v1");
+    assert_eq!(value["schema_version"], "cmdrvl.doctor.v1");
     assert_eq!(value["tool"], "shape");
-    assert_eq!(value["summary"]["status"], "healthy");
-    assert_eq!(value["read_only"], true);
+    assert_eq!(value["mode"], "health");
+    assert_eq!(value["healthy"], true);
 }
 
 #[test]
@@ -161,36 +154,27 @@ fn doctor_capabilities_json_declares_read_only_contract() {
     let value: serde_json::Value =
         serde_json::from_str(&result.stdout).expect("capabilities should be JSON");
 
-    assert_eq!(value["schema_version"], "shape.doctor.capabilities.v1");
+    assert_eq!(value["schema_version"], "cmdrvl.doctor.v1");
+    assert_eq!(value["mode"], "capabilities");
     assert_eq!(value["tool"], "shape");
-    assert_eq!(value["read_only"], true);
-    assert_eq!(
-        value["fixers"]
-            .as_array()
-            .expect("fixers should be an array")
-            .len(),
-        0
-    );
+    assert_eq!(value["contract"]["fix_mode"]["available"], false);
 
-    let commands = value["commands"]
+    let usage: Vec<&str> = value["contract"]["invocation"]["usage"]
         .as_array()
-        .expect("commands should be an array");
+        .expect("usage should be an array")
+        .iter()
+        .filter_map(|line| line.as_str())
+        .collect();
     for expected in [
-        "shape --robot-triage",
         "shape capabilities --json",
         "shape robot-docs guide",
-        "shape doctor health",
-        "shape doctor health --json",
+        "shape doctor [--json]",
         "shape doctor capabilities --json",
-        "shape doctor robot-docs",
-        "shape doctor --robot-triage",
-        "shape doctor --fix",
+        "shape doctor triage --json",
     ] {
         assert!(
-            commands
-                .iter()
-                .any(|command| command["command"].as_str() == Some(expected)),
-            "missing command capability {expected}"
+            usage.contains(&expected),
+            "missing usage line {expected}: {usage:?}"
         );
     }
 }
@@ -207,9 +191,9 @@ fn describe_includes_doctor_surface() {
     );
     let value: serde_json::Value =
         serde_json::from_str(&result.stdout).expect("describe should be JSON");
-    let subcommands = value["subcommands"]
+    let subcommands = value["commands"]
         .as_array()
-        .expect("subcommands should be an array");
+        .expect("commands should be an array");
     for expected in ["capabilities", "robot-docs"] {
         assert!(
             subcommands
@@ -245,8 +229,8 @@ fn doctor_robot_docs_names_agent_surface() {
     assert!(result.stdout.contains("shape --robot-triage"));
     assert!(result.stdout.contains("shape capabilities --json"));
     assert!(result.stdout.contains("shape robot-docs guide"));
-    assert!(result.stdout.contains("shape doctor health"));
-    assert!(result.stdout.contains("shape doctor health --json"));
+    assert!(result.stdout.contains("shape doctor [--json]"));
+    assert!(result.stdout.contains("shape doctor triage --json"));
     assert!(result.stdout.contains("shape doctor capabilities --json"));
     assert!(result.stdout.contains("Feed shape reports to `assess`"));
     assert!(result.stdout.contains("shape doctor --fix is unavailable"));
@@ -265,14 +249,9 @@ fn doctor_robot_triage_is_single_call_json() {
     let value: serde_json::Value =
         serde_json::from_str(&result.stdout).expect("robot triage should be JSON");
 
-    assert_eq!(value["schema_version"], "shape.doctor.v1");
-    assert_eq!(value["summary"]["status"], "healthy");
-    assert_eq!(value["read_only"], true);
-    assert_eq!(value["actions_planned"].as_array().unwrap().len(), 0);
-    assert_eq!(
-        value["capabilities_url"],
-        "command:shape capabilities --json"
-    );
+    assert_eq!(value["schema_version"], "cmdrvl.doctor.v1");
+    assert_eq!(value["mode"], "triage");
+    assert_eq!(value["healthy"], true);
 }
 
 #[test]
@@ -285,7 +264,7 @@ fn doctor_fix_surface_refuses_with_agent_alternatives() {
         "usage errors should not emit stdout"
     );
     assert!(result.stderr.contains("shape doctor --fix is unavailable"));
-    assert!(result.stderr.contains("shape --robot-triage"));
+    assert!(result.stderr.contains("shape doctor triage --json"));
     assert!(result.stderr.contains("shape capabilities --json"));
     assert!(result.stderr.contains("shape robot-docs guide"));
 }

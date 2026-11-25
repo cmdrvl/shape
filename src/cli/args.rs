@@ -9,7 +9,7 @@ use clap::{ArgAction, Parser, Subcommand};
     name = "shape",
     version,
     about = "Structural comparability gate for CSV datasets",
-    override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor <health|capabilities|robot-docs> [OPTIONS]",
+    override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor [health|capabilities|triage|robot-docs] [--json]",
     after_help = "Column names and schema detail are redacted by default: counts, ratios and statuses only.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nUse it for local, non-sensitive runs; prefer the default for logged or shared output.\nNOT yet redacted, with or without --explicit: file paths, the --key column you pass, and free-text `reasons` (known gap: bd-pitd). Do not treat default output as zero-retention safe yet.",
     subcommand_negates_reqs = true
 )]
@@ -105,6 +105,10 @@ pub struct DoctorArgs {
     #[arg(long = "robot-triage")]
     pub robot_triage: bool,
 
+    /// Emit the doctor report as JSON (cmdrvl.doctor.v1, mode health).
+    #[arg(long)]
+    pub json: bool,
+
     /// Refuse safely; repair mode is not available in this release.
     #[arg(long, hide = true)]
     pub fix: bool,
@@ -117,10 +121,19 @@ pub struct DoctorArgs {
 pub enum DoctorAction {
     /// Print a cheap one-line health summary.
     Health(DoctorHealthArgs),
-    /// Print the machine-readable doctor capability contract.
+    /// Print the doctor report carrying the operator contract (cmdrvl.doctor.v1, mode capabilities).
     Capabilities(DoctorCapabilitiesArgs),
+    /// Print the doctor report with next actions (cmdrvl.doctor.v1, mode triage).
+    Triage(DoctorTriageArgs),
     /// Print paste-ready operating notes for agents.
     RobotDocs,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct DoctorTriageArgs {
+    /// Emit JSON output.
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -198,7 +211,7 @@ pub struct WitnessCountArgs {
 impl Args {
     /// Parse CLI arguments using clap and return clap's rich error on failure.
     pub fn parse() -> Result<Self, clap::Error> {
-        Self::try_parse()
+        Self::parse_from(std::env::args_os())
     }
 
     /// Parse CLI arguments from an iterator.
@@ -207,8 +220,28 @@ impl Args {
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        Self::try_parse_from(itr)
+        use clap::{CommandFactory, FromArgMatches};
+
+        let mut command = Self::command();
+        if color_disabled_by_env(
+            std::env::var_os("NO_COLOR").as_deref(),
+            std::env::var_os("TERM").as_deref(),
+        ) {
+            // clap/anstream already strips ANSI for non-TTY and NO_COLOR, but a forced-color
+            // variable (CLICOLOR_FORCE) would still win over TERM=dumb; make "never" explicit.
+            command = command.color(clap::ColorChoice::Never);
+        }
+        let matches = command.try_get_matches_from(itr)?;
+        Self::from_arg_matches(&matches)
     }
+}
+
+/// NO_COLOR (any non-empty value) or TERM=dumb means no ANSI styling.
+pub(crate) fn color_disabled_by_env(
+    no_color: Option<&std::ffi::OsStr>,
+    term: Option<&std::ffi::OsStr>,
+) -> bool {
+    no_color.is_some_and(|value| !value.is_empty()) || term.is_some_and(|value| value == "dumb")
 }
 
 #[cfg(test)]

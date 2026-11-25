@@ -10,7 +10,7 @@ const INVALID_DELIMITER: &str = "bad";
 fn assert_operator_payload(stdout: &str) {
     let payload: Value =
         serde_json::from_str(stdout).expect("--describe should emit valid operator.json payload");
-    assert_eq!(payload["schema_version"], "operator.v0");
+    assert_eq!(payload["schema_version"], "operator.v1");
     assert_eq!(payload["name"], "shape");
 
     let refusals = payload["refusals"]

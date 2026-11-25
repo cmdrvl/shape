@@ -66,12 +66,12 @@ fn refusal_code(result: &helpers::ShapeInvocation) -> String {
 fn operator_json_version_matches_cargo_package_version() {
     let operator: Value = serde_json::from_str(include_str!("../operator.json"))
         .expect("operator.json should be valid JSON");
-    assert_eq!(operator["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(operator["tool_version"], env!("CARGO_PKG_VERSION"));
 
     let described = run_shape(["--describe"]);
     assert_eq!(described.status, 0);
     let described: Value = serde_json::from_str(&described.stdout).expect("describe is JSON");
-    assert_eq!(described["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(described["tool_version"], env!("CARGO_PKG_VERSION"));
 }
 
 #[test]

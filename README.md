@@ -266,10 +266,11 @@ Prebuilt binaries are available for x86_64 and ARM64 on Linux, macOS, and Window
 
 ```
 shape <old.csv> <new.csv> [OPTIONS]
-shape --robot-triage
 shape capabilities --json
 shape robot-docs guide
 shape witness <query|last|count> [OPTIONS]
+shape doctor [--json]
+shape doctor triage --json
 ```
 
 ### Flags
@@ -286,7 +287,7 @@ shape witness <query|last|count> [OPTIONS]
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
 | `--profile-id <id>` | string | *(none)* | Resolve a frozen profile ID from `~/.cmdrvl/config/profile/profiles`; legacy `~/.epistemic/profiles` is copied on first default use. Mutually exclusive with `--profile`. |
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
-| `--robot-triage` | flag | `false` | Emit one-call machine triage for headless agents without positional args. |
+| `--robot-triage` | flag | `false` | Deprecated alias of `shape doctor triage --json`: emits the `cmdrvl.doctor.v1` triage report without positional args. |
 
 <details>
 <summary><strong>Reserved v0 flags</strong> (parsed for schema stability, not yet enforced at runtime)</summary>
@@ -302,9 +303,13 @@ shape witness <query|last|count> [OPTIONS]
 
 | Code | Meaning |
 |------|---------|
-| `0` | COMPATIBLE |
-| `1` | INCOMPATIBLE |
+| `0` | COMPATIBLE (`doctor`: healthy) |
+| `1` | INCOMPATIBLE, a halting verdict (`doctor`: unhealthy) |
 | `2` | REFUSAL or CLI error |
+
+A bare `shape` (no arguments) is a usage error: it exits `2` and prints guidance on stderr (including `shape --robot-triage` and `shape capabilities --json`). It deliberately does not exit `0`, so a gate can never pass because its arguments were forgotten.
+
+**Environment:** `NO_COLOR` (any non-empty value) and `TERM=dumb` disable ANSI styling, and output is unstyled whenever it is not a TTY. `SOURCE_DATE_EPOCH` replaces the wall clock in the witness record timestamp.
 
 ### Output Routing
 
@@ -393,16 +398,15 @@ Both `shape` and `rvl` are designed to be consumed by agents and pipelines, not 
 An agent can learn how to invoke `shape` without reading docs:
 
 ```bash
-$ shape --robot-triage | jq '.summary'
+$ shape doctor triage --json | jq '{schema_version, mode, healthy}'
 {
-  "status": "healthy",
-  "checks_passed": 3,
-  "checks_total": 3,
-  "findings_count": 0
+  "schema_version": "cmdrvl.doctor.v1",
+  "mode": "triage",
+  "healthy": true
 }
 
-$ shape capabilities --json | jq -r '.agent_surfaces.robot_triage.command'
-shape --robot-triage
+$ shape capabilities --json | jq -r '.agent_surfaces.doctor_triage.command'
+shape doctor triage --json
 
 $ shape capabilities --json | jq -r '.agent_surfaces.robot_docs.command'
 shape robot-docs guide

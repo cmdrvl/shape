@@ -408,9 +408,9 @@ fn describe_operator_contract_includes_witness_usage_and_no_witness_option() {
         "operator options should include --no-witness"
     );
 
-    let witness = payload["subcommands"]
+    let witness = payload["commands"]
         .as_array()
-        .expect("subcommands should be an array")
+        .expect("commands should be an array")
         .iter()
         .find(|entry| entry["name"].as_str() == Some("witness"))
         .expect("witness subcommand should be present");

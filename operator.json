@@ -1,8 +1,9 @@
 {
-  "schema_version": "operator.v0",
+  "schema_version": "operator.v1",
   "name": "shape",
-  "version": "0.9.0",
-  "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
+  "tool_version": "0.9.0",
+  "contract_version": "1.0.0",
+  "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared. Deprecated aliases kept for one release: `shape --robot-triage` and `shape doctor --robot-triage` (both now emit the cmdrvl.doctor.v1 triage report) and `shape doctor health`.",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
   "agent_guide": "https://github.com/cmdrvl/.github/blob/main/profile/AGENT_PROMPT.md",
@@ -11,12 +12,13 @@
     "binary": "shape",
     "usage": [
       "shape <old.csv> <new.csv> [OPTIONS]",
-      "shape --robot-triage",
       "shape capabilities --json",
       "shape robot-docs guide",
       "shape witness <query|last|count> [OPTIONS]",
-      "shape doctor <health|capabilities|robot-docs> [OPTIONS]",
-      "shape doctor --robot-triage"
+      "shape doctor [--json]",
+      "shape doctor capabilities --json",
+      "shape doctor triage --json",
+      "shape --robot-triage (deprecated alias of: shape doctor triage --json)"
     ],
     "output_mode": "report",
     "output_schema": "shape.v0",
@@ -41,13 +43,13 @@
     { "name": "explicit", "flag": "--explicit", "type": "flag", "description": "Show column names and other identifying metadata in output (default: column names redacted; free-text reasons, file paths and the --key column are not yet redacted, see bd-pitd)" },
     { "name": "schema", "flag": "--schema", "type": "flag", "description": "Print JSON Schema for shape.v0 output format and exit 0" },
     { "name": "describe", "flag": "--describe", "type": "flag", "description": "Print compiled operator.json and exit 0 without positional args" },
-    { "name": "robot_triage", "flag": "--robot-triage", "type": "flag", "description": "Emit one-call machine triage for headless agents without positional args" }
+    { "name": "robot_triage", "flag": "--robot-triage", "type": "flag", "description": "Deprecated alias of `shape doctor triage --json`: emits the cmdrvl.doctor.v1 triage report without positional args" }
   ],
 
-  "subcommands": [
+  "commands": [
     {
       "name": "capabilities",
-      "description": "Top-level machine-readable capability contract for headless agents",
+      "description": "Top-level machine-readable capability contract for headless agents (this document)",
       "status": "available",
       "usage": "shape capabilities --json",
       "current_runtime_behavior": {
@@ -103,40 +105,21 @@
     },
     {
       "name": "doctor",
-      "description": "Read-only diagnostic commands for headless agents",
+      "description": "Read-only diagnostics emitting cmdrvl.doctor.v1: `doctor [--json]` (health), `doctor capabilities --json` (embeds this contract), `doctor triage --json` (next_actions). Exit 0 healthy, 1 unhealthy, 2 usage error. Deprecated aliases: `doctor health [--json]`, `doctor --robot-triage`.",
       "status": "available",
       "actions": [
-        {
-          "name": "health",
-          "usage": "shape doctor health"
-        },
-        {
-          "name": "health-json",
-          "usage": "shape doctor health --json"
-        },
-        {
-          "name": "capabilities",
-          "usage": "shape doctor capabilities --json"
-        },
-        {
-          "name": "robot-docs",
-          "usage": "shape doctor robot-docs"
-        },
-        {
-          "name": "robot-triage",
-          "usage": "shape doctor --robot-triage"
-        },
-        {
-          "name": "fix",
-          "usage": "shape doctor --fix"
-        }
+        { "name": "health", "usage": "shape doctor [--json]" },
+        { "name": "capabilities", "usage": "shape doctor capabilities --json" },
+        { "name": "triage", "usage": "shape doctor triage --json" },
+        { "name": "robot-docs", "usage": "shape doctor robot-docs" },
+        { "name": "fix", "usage": "shape doctor --fix" }
       ],
       "current_runtime_behavior": {
         "read_only": true,
         "fix_mode": "not_available",
         "network": "not_used",
         "success_exit_code": 0,
-        "findings_exit_code": 1,
+        "unhealthy_exit_code": 1,
         "usage_error_exit_code": 2,
         "writes_witness": false,
         "writes_capsules": false
@@ -145,8 +128,8 @@
   ],
 
   "exit_codes": {
-    "0": { "meaning": "COMPATIBLE", "domain": "positive" },
-    "1": { "meaning": "INCOMPATIBLE", "domain": "negative" },
+    "0": { "meaning": "COMPATIBLE (doctor: healthy)", "domain": "positive" },
+    "1": { "meaning": "INCOMPATIBLE (doctor: unhealthy)", "domain": "negative" },
     "2": { "meaning": "REFUSAL / CLI error / witness internal error", "domain": "error" }
   },
 
@@ -207,22 +190,77 @@
     }
   ],
 
+  "env_vars": [
+    { "name": "EPISTEMIC_WITNESS", "description": "Overrides the witness ledger path for compare runs; doctor commands do not write it." },
+    { "name": "HOME", "description": "Used to resolve ~/.cmdrvl default state and config paths; doctor commands do not write them." },
+    { "name": "NO_COLOR", "description": "Any non-empty value disables ANSI styling in clap help and error output." },
+    { "name": "TERM", "description": "TERM=dumb disables ANSI styling; output is also unstyled whenever stdout/stderr is not a TTY." },
+    { "name": "SOURCE_DATE_EPOCH", "description": "Unix seconds used instead of the wall clock for the witness record timestamp (reproducible builds convention)." }
+  ],
+
+  "formats": ["csv"],
+
+  "side_effects": {
+    "reads_files": true,
+    "writes_files": true,
+    "network": false,
+    "writes_witness": true,
+    "notes": "Compare runs append one witness record unless --no-witness; --capsule-dir writes repro artifacts only when given. capabilities, robot-docs and doctor are read-only."
+  },
+
   "capabilities": {
-    "formats": ["csv"],
     "profile_aware": true,
     "streaming": false,
-    "agent_surfaces": {
-      "global_json": "shape --json <old.csv> <new.csv>",
-      "robot_triage": "shape --robot-triage",
-      "capabilities": "shape capabilities --json",
-      "robot_docs": "shape robot-docs guide",
-      "doctor_fix": "shape doctor --fix"
-    },
     "witness": {
       "ambient_recording": "enabled_by_default",
       "query_subcommands": "available",
       "no_witness_flag": "suppresses_recording"
     }
+  },
+
+  "agent_surfaces": {
+    "global_json": { "command": "shape --json <old.csv> <new.csv>", "output": "shape.v0 JSON compare report", "stdout": "single JSON object", "stderr": "process-level failures only" },
+    "doctor": { "command": "shape doctor --json", "output": "cmdrvl.doctor.v1 (mode health)", "mutates": false },
+    "doctor_triage": { "command": "shape doctor triage --json", "output": "cmdrvl.doctor.v1 (mode triage)", "mutates": false },
+    "doctor_capabilities": { "command": "shape doctor capabilities --json", "output": "cmdrvl.doctor.v1 (mode capabilities) embedding this contract", "mutates": false },
+    "robot_triage": { "command": "shape --robot-triage", "output": "deprecated alias of shape doctor triage --json", "mutates": false },
+    "capabilities": { "command": "shape capabilities --json", "output": "operator.v1 contract (identical to --describe)", "mutates": false },
+    "robot_docs": { "command": "shape robot-docs guide", "output": "agent-oriented markdown guide", "mutates": false }
+  },
+
+  "fix_mode": {
+    "available": false,
+    "command": "shape doctor --fix",
+    "behavior": "exits 2, emits only stderr, and names read-only alternatives"
+  },
+
+  "composition": {
+    "family": { "name": "cmdrvl-spine", "siblings": ["rvl", "verify", "benchmark", "assess", "pack"] },
+    "role": "structural_comparability_gate",
+    "position": "before_numeric_diff",
+    "accepts": [
+      { "kind": "csv_pair", "description": "Two CSV datasets that may be compared after schema, key, granularity, and type checks." }
+    ],
+    "produces": [
+      { "kind": "shape_report", "schema": "shape.v0", "command": "shape <old.csv> <new.csv> --key <column> --json" }
+    ],
+    "canonical_chains": [
+      {
+        "name": "gate_numeric_diff",
+        "commands": [
+          "shape <old.csv> <new.csv> --key <column> --json > shape.json",
+          "jq -e '.outcome == \"COMPATIBLE\"' shape.json >/dev/null",
+          "rvl <old.csv> <new.csv> --key <column> --json > rvl.json"
+        ],
+        "stop_conditions": ["REFUSAL", "INCOMPATIBLE"],
+        "downstream_tools": ["rvl", "assess", "pack"]
+      }
+    ],
+    "agent_rules": [
+      "Run shape before rvl whenever the task is to compare two tabular datasets.",
+      "Do not run rvl on the pair when shape reports REFUSAL or INCOMPATIBLE.",
+      "Use the same key/profile choices for shape and the downstream rvl run."
+    ]
   },
 
   "pipeline": {
