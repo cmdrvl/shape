@@ -10,6 +10,7 @@ use clap::{ArgAction, Parser, Subcommand};
     version,
     about = "Structural comparability gate for CSV datasets",
     override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor <health|capabilities|robot-docs> [OPTIONS]",
+    after_help = "Output is redacted by default (zero-retention safe): counts, ratios and statuses only, no column names.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nUse it for local, non-sensitive runs; omit it for logged, shared, or veil/airlock zero-retention workflows.\nNot redacted either way: file paths, the --key column you pass, and free-text `reasons`.",
     subcommand_negates_reqs = true
 )]
 pub struct Args {

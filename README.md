@@ -35,6 +35,10 @@ Two CSV exports land on your desk — November and December. Before you open a s
 
 ## Quick Example
 
+> **Redacted by default.** shape is zero-retention safe out of the box: without `--explicit`, human and JSON output carry counts, ratios and statuses but **no column names** (the schema `old_only` / `new_only` lists are empty and type-shift columns show `[REDACTED]`). Add `--explicit` to see them. The examples below show the default; the `--explicit` form follows.
+>
+> Not redacted either way: file paths, the `--key` column you pass, and the free-text `reasons` strings, which can name columns. Treat `reasons` as potentially identifying.
+
 ```bash
 $ shape nov.csv dec.csv --key loan_id
 ```
@@ -56,6 +60,23 @@ Types:     12 numeric columns, 0 type shifts
 ```
 
 All four checks pass. These files are structurally compatible — safe to proceed with `rvl`, `compare`, or `verify`.
+
+When a check fails, `--explicit` is what names the columns involved:
+
+```bash
+$ shape nov.csv dec.csv --key loan_id            # default: counts only
+Schema:    15 common / 17 total (88% overlap)
+Types:     12 numeric columns, 1 type shift
+
+$ shape nov.csv dec.csv --key loan_id --explicit # adds column names
+Schema:    15 common / 17 total (88% overlap)
+           old_only: [retired_field]
+           new_only: [new_field]
+Types:     12 numeric columns, 1 type shift
+           balance: numeric -> non-numeric
+```
+
+Use `--explicit` for local, non-sensitive runs where you want the column names. Keep the default when output may be logged, pasted, or retained (for example `veil`/`airlock` zero-retention workflows). In `--json`, redacted output has empty `columns_old_only` / `columns_new_only` and `"column": "[REDACTED]"` in `type_shifts`; `--explicit` fills them (identifiers are encoded, e.g. `u8:balance`).
 
 ```bash
 # Gate a pipeline (shape before rvl):
@@ -127,6 +148,8 @@ Types:     12 numeric columns, 1 type shift
 Reasons:
   1. Type shift: balance changed from numeric to non-numeric
 ```
+
+*(Shown with `--explicit`: the `old_only`/`new_only` lists and the `balance: numeric -> non-numeric` line appear only then. By default they are omitted. The `Reasons` text is not redacted.)*
 
 ### 3. REFUSAL
 
@@ -257,6 +280,7 @@ shape witness <query|last|count> [OPTIONS]
 | `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
 | `--lock <lockfile>` | path | *(none)* | Verify both inputs against `lock.v0` lockfile members (exact path match, else unique basename; `sha256:`/`blake3:` `bytes_hash`). Not listed → `E_INPUT_NOT_LOCKED`; hash differs → `E_INPUT_DRIFT`. Repeatable. |
+| `--explicit` | flag | `false` (redacted) | Show column names and other identifying metadata (schema `old_only`/`new_only`, type-shift columns). **Default is redacted for zero-retention safety.** File paths, the `--key` column and free-text `reasons` are not redacted either way. |
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
 | `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
@@ -620,8 +644,8 @@ A single JSON object on stdout. If the process fails before domain evaluation (e
     "schema_overlap": {
       "status": "pass",                    // "pass" | "fail"
       "columns_common": 15,
-      "columns_old_only": ["retired_field"],
-      "columns_new_only": ["new_field"],
+      "columns_old_only": ["u8:retired_field"],  // names only with --explicit; default is []
+      "columns_new_only": ["u8:new_field"],      // names only with --explicit; default is []
       "overlap_ratio": 0.88
     },
     "key_viability": {

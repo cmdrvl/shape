@@ -104,6 +104,20 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
     println!("- 1: findings present");
     println!("- 2: command-line usage error from clap");
     println!();
+    println!("Redaction (--explicit):");
+    println!(
+        "- Default output is redacted for zero-retention safety: counts, ratios and statuses only; column names are omitted (schema old_only/new_only lists are empty, type-shift columns show [REDACTED])."
+    );
+    println!(
+        "- Pass `--explicit` to show column names and other identifying metadata, e.g. `shape <old.csv> <new.csv> --key <column> --json --explicit`."
+    );
+    println!(
+        "- Not redacted either way: file paths, the `--key` column you passed, and the free-text `reasons` strings (which can name columns). Do not assume `reasons` is safe to retain."
+    );
+    println!(
+        "- Use `--explicit` for local non-sensitive runs; omit it for logged, shared, or veil/airlock zero-retention workflows."
+    );
+    println!();
     println!("Composition:");
     println!(
         "- Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl` when comparing two tabular datasets."
