@@ -19,7 +19,14 @@ fn help_documents_default_redaction_and_explicit() {
     assert_eq!(result.status, 0);
     assert!(result.stdout.contains("--explicit"));
     assert!(result.stdout.contains("redacted by default"));
-    assert!(result.stdout.contains("zero-retention"));
+    assert!(result.stdout.contains("NOT yet redacted"));
+    assert!(result.stdout.contains("bd-pitd"));
+    assert!(
+        result
+            .stdout
+            .contains("Do not treat default output as zero-retention safe yet"),
+        "help must not claim an unqualified zero-retention guarantee"
+    );
 }
 
 #[test]
@@ -28,7 +35,10 @@ fn robot_docs_guide_documents_default_redaction_and_explicit() {
 
     assert_eq!(result.status, 0);
     assert!(result.stdout.contains("Redaction (--explicit):"));
-    assert!(result.stdout.contains("redacted for zero-retention safety"));
+    assert!(result.stdout.contains("redacted by default"));
+    assert!(result.stdout.contains("NOT yet redacted"));
+    assert!(result.stdout.contains("bd-pitd"));
+    assert!(!result.stdout.contains("redacted for zero-retention safety"));
     assert!(result.stdout.contains("--explicit"));
     assert!(
         result.stdout.contains("`reasons`"),
@@ -40,7 +50,13 @@ fn robot_docs_guide_documents_default_redaction_and_explicit() {
 fn readme_documents_default_redaction_and_explicit() {
     let readme = include_str!("../README.md");
 
-    assert!(readme.contains("Redacted by default"));
+    assert!(readme.contains("Redacted by default (partially)"));
+    assert!(readme.contains("Not yet redacted"));
+    assert!(readme.contains("bd-pitd"));
+    assert!(
+        !readme.contains("zero-retention safe out of the box"),
+        "README must not claim an unqualified zero-retention guarantee"
+    );
     assert!(readme.contains("| `--explicit` |"));
     assert!(readme.contains("shape nov.csv dec.csv --key loan_id --explicit"));
 }

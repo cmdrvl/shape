@@ -35,9 +35,9 @@ Two CSV exports land on your desk — November and December. Before you open a s
 
 ## Quick Example
 
-> **Redacted by default.** shape is zero-retention safe out of the box: without `--explicit`, human and JSON output carry counts, ratios and statuses but **no column names** (the schema `old_only` / `new_only` lists are empty and type-shift columns show `[REDACTED]`). Add `--explicit` to see them. The examples below show the default; the `--explicit` form follows.
+> **Redacted by default (partially).** Without `--explicit`, column names and schema detail are redacted: human and JSON output carry counts, ratios and statuses but no column names (the schema `old_only` / `new_only` lists are empty and type-shift columns show `[REDACTED]`). Add `--explicit` to see them. The examples below show the default; the `--explicit` form follows.
 >
-> Not redacted either way: file paths, the `--key` column you pass, and the free-text `reasons` strings, which can name columns. Treat `reasons` as potentially identifying.
+> **Not yet redacted, with or without `--explicit`:** the free-text `reasons` strings (which can name columns), file paths, and the `--key` column you pass (it also appears in key-viability reasons). This is a known gap tracked as `bd-pitd`; until it is fixed, do not treat default output as zero-retention safe.
 
 ```bash
 $ shape nov.csv dec.csv --key loan_id
@@ -76,7 +76,7 @@ Types:     12 numeric columns, 1 type shift
            balance: numeric -> non-numeric
 ```
 
-Use `--explicit` for local, non-sensitive runs where you want the column names. Keep the default when output may be logged, pasted, or retained (for example `veil`/`airlock` zero-retention workflows). In `--json`, redacted output has empty `columns_old_only` / `columns_new_only` and `"column": "[REDACTED]"` in `type_shifts`; `--explicit` fills them (identifiers are encoded, e.g. `u8:balance`).
+Use `--explicit` for local, non-sensitive runs where you want the column names. Prefer the default when output may be logged, pasted, or retained (for example `veil`/`airlock` workflows), but remember it still carries `reasons` text, file paths and the `--key` column (see the callout above). In `--json`, redacted output has empty `columns_old_only` / `columns_new_only` and `"column": "[REDACTED]"` in `type_shifts`; `--explicit` fills them (identifiers are encoded, e.g. `u8:balance`).
 
 ```bash
 # Gate a pipeline (shape before rvl):
@@ -280,7 +280,7 @@ shape witness <query|last|count> [OPTIONS]
 | `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
 | `--lock <lockfile>` | path | *(none)* | Verify both inputs against `lock.v0` lockfile members (exact path match, else unique basename; `sha256:`/`blake3:` `bytes_hash`). Not listed → `E_INPUT_NOT_LOCKED`; hash differs → `E_INPUT_DRIFT`. Repeatable. |
-| `--explicit` | flag | `false` (redacted) | Show column names and other identifying metadata (schema `old_only`/`new_only`, type-shift columns). **Default is redacted for zero-retention safety.** File paths, the `--key` column and free-text `reasons` are not redacted either way. |
+| `--explicit` | flag | `false` (redacted) | Show column names and other identifying metadata (schema `old_only`/`new_only`, type-shift columns). **Column names are redacted by default.** File paths, the `--key` column and free-text `reasons` are not yet redacted either way (known gap: `bd-pitd`). |
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
 | `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |

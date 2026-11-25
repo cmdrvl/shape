@@ -106,16 +106,16 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
     println!();
     println!("Redaction (--explicit):");
     println!(
-        "- Default output is redacted for zero-retention safety: counts, ratios and statuses only; column names are omitted (schema old_only/new_only lists are empty, type-shift columns show [REDACTED])."
+        "- Column names and schema detail are redacted by default: counts, ratios and statuses only (schema old_only/new_only lists are empty, type-shift columns show [REDACTED])."
     );
     println!(
         "- Pass `--explicit` to show column names and other identifying metadata, e.g. `shape <old.csv> <new.csv> --key <column> --json --explicit`."
     );
     println!(
-        "- Not redacted either way: file paths, the `--key` column you passed, and the free-text `reasons` strings (which can name columns). Do not assume `reasons` is safe to retain."
+        "- NOT yet redacted, with or without `--explicit`: file paths, the `--key` column you passed, and the free-text `reasons` strings (which can name columns). Known gap: bd-pitd. Do not treat default output as zero-retention safe until it is fixed."
     );
     println!(
-        "- Use `--explicit` for local non-sensitive runs; omit it for logged, shared, or veil/airlock zero-retention workflows."
+        "- Use `--explicit` for local non-sensitive runs; prefer the default for logged, shared, or veil/airlock workflows, keeping the gap above in mind."
     );
     println!();
     println!("Composition:");

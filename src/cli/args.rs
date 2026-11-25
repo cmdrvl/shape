@@ -10,7 +10,7 @@ use clap::{ArgAction, Parser, Subcommand};
     version,
     about = "Structural comparability gate for CSV datasets",
     override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor <health|capabilities|robot-docs> [OPTIONS]",
-    after_help = "Output is redacted by default (zero-retention safe): counts, ratios and statuses only, no column names.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nUse it for local, non-sensitive runs; omit it for logged, shared, or veil/airlock zero-retention workflows.\nNot redacted either way: file paths, the --key column you pass, and free-text `reasons`.",
+    after_help = "Column names and schema detail are redacted by default: counts, ratios and statuses only.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nUse it for local, non-sensitive runs; prefer the default for logged or shared output.\nNOT yet redacted, with or without --explicit: file paths, the --key column you pass, and free-text `reasons` (known gap: bd-pitd). Do not treat default output as zero-retention safe yet.",
     subcommand_negates_reqs = true
 )]
 pub struct Args {
@@ -50,7 +50,7 @@ pub struct Args {
     #[arg(long = "max-bytes", value_name = "n")]
     pub max_bytes: Option<u64>,
 
-    /// Show column names and other identifying metadata in output (default: redacted for zero-retention safety).
+    /// Show column names and other identifying metadata in output (default: column names redacted; free-text reasons, file paths and the --key column are not yet redacted, see bd-pitd).
     #[arg(long)]
     pub explicit: bool,
 
