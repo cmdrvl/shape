@@ -11,6 +11,8 @@ const TYPE_SHIFT_NEW: &str = "type_shift_new.csv";
 const NO_HEADER: &str = "no_header.csv";
 const EMPTY: &str = "empty.csv";
 const KEY_LOAN_ID: &str = "loan_id";
+const ZERO_OVERLAP_OLD: &str = "zero_overlap_old.csv";
+const ZERO_OVERLAP_NEW: &str = "zero_overlap_new.csv";
 
 struct ExitCodeCase<'a> {
     old_fixture: &'a str,
@@ -104,6 +106,75 @@ fn harness_runs_human_and_json_through_shared_invoker() {
 
     let json = run_case(BASIC_OLD, BASIC_NEW, &["--json", "--key", KEY_LOAN_ID]);
     assert_json_outcome(&json, 0, "COMPATIBLE", "json output");
+}
+
+#[test]
+fn zero_key_overlap_is_incompatible_with_structured_overlap_telemetry() {
+    let invocation = run_case(
+        ZERO_OVERLAP_OLD,
+        ZERO_OVERLAP_NEW,
+        &["--json", "--key", KEY_LOAN_ID],
+    );
+
+    assert_eq!(invocation.status, 1);
+    assert!(invocation.stderr.trim().is_empty());
+    let value = parse_json_output(&invocation, "zero-overlap output");
+    assert_eq!(value["outcome"], "INCOMPATIBLE");
+    assert_eq!(value["checks"]["key_viability"]["status"], "fail");
+    assert_eq!(value["checks"]["key_viability"]["coverage"], 0.0);
+    assert_eq!(value["checks"]["row_granularity"]["key_overlap"], 0);
+    assert_eq!(value["checks"]["row_granularity"]["keys_old_only"], 2);
+    assert_eq!(value["checks"]["row_granularity"]["keys_new_only"], 2);
+    assert!(
+        value["reasons"]
+            .as_array()
+            .expect("reasons array")
+            .iter()
+            .any(|reason| reason
+                .as_str()
+                .is_some_and(|reason| reason.contains("no overlapping key values")))
+    );
+
+    let explicit_zero_floor = run_case(
+        ZERO_OVERLAP_OLD,
+        ZERO_OVERLAP_NEW,
+        &["--json", "--key", KEY_LOAN_ID, "--min-coverage", "0"],
+    );
+    assert_eq!(explicit_zero_floor.status, 1);
+}
+
+#[test]
+fn min_coverage_gate_enforces_custom_floor_and_range() {
+    let below = run_case(
+        BASIC_OLD,
+        BASIC_NEW,
+        &["--json", "--key", KEY_LOAN_ID, "--min-coverage", "0.8"],
+    );
+    assert_eq!(below.status, 1);
+    assert_eq!(
+        parse_json_output(&below, "below-minimum output")["outcome"],
+        "INCOMPATIBLE"
+    );
+
+    let at_or_above = run_case(
+        BASIC_OLD,
+        BASIC_NEW,
+        &["--json", "--key", KEY_LOAN_ID, "--min-coverage", "0.6"],
+    );
+    assert_eq!(at_or_above.status, 0);
+    assert_eq!(
+        parse_json_output(&at_or_above, "at-minimum output")["outcome"],
+        "COMPATIBLE"
+    );
+
+    let invalid = run_case(
+        BASIC_OLD,
+        BASIC_NEW,
+        &["--json", "--key", KEY_LOAN_ID, "--min-coverage", "1.01"],
+    );
+    assert_eq!(invalid.status, 2);
+    assert!(invalid.stdout.trim().is_empty());
+    assert!(invalid.stderr.contains("between 0.0 and 1.0"));
 }
 
 #[test]

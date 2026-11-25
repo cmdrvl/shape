@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::checks::key_viability::KeyViabilityResult;
-use crate::checks::key_viability::evaluate_key_viability;
+use crate::checks::key_viability::evaluate_key_viability_with_min_coverage;
 use crate::checks::row_granularity::RowGranularityResult;
 use crate::checks::row_granularity::{compute_key_overlap_metrics, evaluate_row_granularity};
 use crate::checks::schema_overlap::SchemaOverlapResult;
@@ -63,6 +63,31 @@ pub fn assemble_check_suite(
     new_scan: &ScanResult,
     include_set: Option<&HashSet<Vec<u8>>>,
 ) -> CheckSuite {
+    assemble_check_suite_with_min_coverage(
+        old_headers,
+        new_headers,
+        key_columns,
+        keys_found_old,
+        keys_found_new,
+        old_scan,
+        new_scan,
+        include_set,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn assemble_check_suite_with_min_coverage(
+    old_headers: &[Vec<u8>],
+    new_headers: &[Vec<u8>],
+    key_columns: Vec<Vec<u8>>,
+    keys_found_old: Vec<bool>,
+    keys_found_new: Vec<bool>,
+    old_scan: &ScanResult,
+    new_scan: &ScanResult,
+    include_set: Option<&HashSet<Vec<u8>>>,
+    min_coverage: Option<f64>,
+) -> CheckSuite {
     let schema_overlap = evaluate_schema_overlap(old_headers, new_headers, include_set);
     let key_active = !key_columns.is_empty();
     let complete_key_found = key_active
@@ -71,12 +96,13 @@ pub fn assemble_check_suite(
     let key_viability = if key_columns.is_empty() {
         None
     } else {
-        Some(evaluate_key_viability(
+        Some(evaluate_key_viability_with_min_coverage(
             key_columns,
             keys_found_old,
             keys_found_new,
             old_scan.key_scan.as_ref(),
             new_scan.key_scan.as_ref(),
+            min_coverage,
         ))
     };
 
@@ -156,6 +182,17 @@ pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
                 key.duplicate_values_new,
                 key.empty_values_new,
             );
+            if key.unique_old == Some(true) && key.unique_new == Some(true) {
+                match key.coverage {
+                    Some(0.0) => reasons.push(format!(
+                        "Key viability: {key_name} has no overlapping key values between old and new files"
+                    )),
+                    Some(_) if key.status == CheckStatus::Fail => reasons.push(format!(
+                        "Key viability: {key_name} key overlap is below the required minimum"
+                    )),
+                    _ => {}
+                }
+            }
         }
     }
 

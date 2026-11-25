@@ -8,6 +8,7 @@ All fixtures are deterministic and intentionally small so unit/integration tests
 - `schema_drift_old.csv` + `schema_drift_new.csv`: shared core columns with old/new-only fields.
 - `type_shift_old.csv` + `type_shift_new.csv`: `balance` shifts from numeric to non-numeric.
 - `dup_key_old.csv` + `dup_key_new.csv`: old file contains duplicate key value (`D1`).
+- `zero_overlap_old.csv` + `zero_overlap_new.csv`: both keys are unique, but the key sets are disjoint.
 
 ## Singles
 

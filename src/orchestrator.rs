@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::capsule;
 use crate::checks::suite::{
-    CheckSuite, Outcome, assemble_check_suite, build_reasons, determine_outcome,
+    CheckSuite, Outcome, assemble_check_suite_with_min_coverage, build_reasons, determine_outcome,
 };
 use crate::cli::args::Args;
 use crate::cli::delimiter::parse_delimiter;
@@ -362,7 +362,7 @@ fn execute_pipeline(
         },
     )?;
 
-    let suite = assemble_check_suite(
+    let suite = assemble_check_suite_with_min_coverage(
         &old_effective_headers,
         &new_effective_headers,
         key_columns,
@@ -371,6 +371,7 @@ fn execute_pipeline(
         &old_scan,
         &new_scan,
         include_set.as_ref(),
+        args.min_coverage,
     );
     let reasons = build_reasons(&suite);
     let outcome = determine_outcome(&suite);
@@ -924,6 +925,7 @@ mod tests {
             old: Some(old),
             new: Some(new),
             key: key.map(ToOwned::to_owned),
+            min_coverage: None,
             delimiter: None,
             json,
             no_witness: false,

@@ -158,10 +158,10 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
     println!();
     println!("Composition:");
     println!(
-        "- Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl` when comparing two tabular datasets."
+        "- Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl` when comparing two tabular datasets; keyed compatibility requires positive overlap."
     );
     println!(
-        "- Continue to `rvl <old.csv> <new.csv> --key <column> --json` only when shape reports COMPATIBLE."
+        "- Continue to `rvl <old.csv> <new.csv> --key <column> --key-mode overlap --json` only when shape reports COMPATIBLE; zero-overlap pairs are INCOMPATIBLE and must stop."
     );
     println!(
         "- Feed shape reports to `assess` with the matching rvl/verify/benchmark artifacts, or seal them with `pack`."
@@ -279,7 +279,7 @@ impl Report {
                 if next_actions.is_empty() {
                     next_actions.push("shape capabilities --json".to_string());
                     next_actions
-                        .push("shape <old.csv> <new.csv> --key <column> --json".to_string());
+                        .push("shape <old.csv> <new.csv> --key <column> --json (requires positive key overlap)".to_string());
                 } else {
                     next_actions.push("shape doctor capabilities --json".to_string());
                 }

@@ -306,6 +306,15 @@ fn key_viability_issue_fragments(key: &KeyViabilityResult) -> Vec<String> {
         key.duplicate_values_new,
         key.empty_values_new,
     );
+    if key.unique_old == Some(true) && key.unique_new == Some(true) {
+        match key.coverage {
+            Some(0.0) => issues.push("no overlapping keys".to_owned()),
+            Some(_) if key.status == CheckStatus::Fail => {
+                issues.push("coverage below minimum".to_owned())
+            }
+            _ => {}
+        }
+    }
     issues
 }
 

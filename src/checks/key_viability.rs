@@ -29,6 +29,30 @@ pub fn evaluate_key_viability(
     old_scan: Option<&KeyScan>,
     new_scan: Option<&KeyScan>,
 ) -> KeyViabilityResult {
+    evaluate_key_viability_with_min_coverage(
+        key_columns,
+        found_components_old,
+        found_components_new,
+        old_scan,
+        new_scan,
+        None,
+    )
+}
+
+/// Evaluate key viability with an optional minimum overlap ratio.
+///
+/// Two non-empty key sets always require at least one overlapping key. An
+/// explicit threshold adds the normal inclusive `coverage >= minimum`
+/// comparison; `--min-coverage 0` is therefore a valid no-op floor, not a way
+/// to make a zero-overlap pair compatible.
+pub fn evaluate_key_viability_with_min_coverage(
+    key_columns: Vec<Vec<u8>>,
+    found_components_old: Vec<bool>,
+    found_components_new: Vec<bool>,
+    old_scan: Option<&KeyScan>,
+    new_scan: Option<&KeyScan>,
+    min_coverage: Option<f64>,
+) -> KeyViabilityResult {
     let found_old = found_components_old.iter().all(|&f| f);
     let found_new = found_components_new.iter().all(|&f| f);
     let old_scan = old_scan.filter(|_| found_old);
@@ -45,7 +69,22 @@ pub fn evaluate_key_viability(
         _ => None,
     };
 
-    let status = if found_old && found_new && unique_old == Some(true) && unique_new == Some(true) {
+    let coverage_is_viable = match (old_scan, new_scan, coverage) {
+        (Some(old), Some(new), Some(coverage)) if has_rows(old) && has_rows(new) => {
+            coverage > 0.0 && coverage >= min_coverage.unwrap_or(0.0)
+        }
+        // An empty table is rejected by the pipeline's E_EMPTY guard. Keep
+        // direct check evaluation deterministic for the empty-table edge case
+        // rather than treating its zero denominator as a domain mismatch.
+        _ => true,
+    };
+
+    let status = if found_old
+        && found_new
+        && unique_old == Some(true)
+        && unique_new == Some(true)
+        && coverage_is_viable
+    {
         CheckStatus::Pass
     } else {
         CheckStatus::Fail
@@ -70,6 +109,10 @@ pub fn evaluate_key_viability(
     }
 }
 
+fn has_rows(scan: &KeyScan) -> bool {
+    !scan.values.is_empty() || scan.duplicate_count > 0 || scan.empty_count > 0
+}
+
 fn is_unique_and_non_empty(scan: &KeyScan) -> bool {
     scan.duplicate_count == 0 && scan.empty_count == 0
 }
@@ -88,7 +131,7 @@ fn calculate_coverage(old: &KeyScan, new: &KeyScan) -> f64 {
 mod tests {
     use std::collections::HashSet;
 
-    use super::evaluate_key_viability;
+    use super::{evaluate_key_viability, evaluate_key_viability_with_min_coverage};
     use crate::checks::suite::CheckStatus;
     use crate::scan::KeyScan;
 
@@ -190,6 +233,62 @@ mod tests {
         );
 
         assert_eq!(result.coverage, Some(0.0));
+        assert_eq!(result.status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn fails_when_non_empty_key_sets_have_no_overlap() {
+        let old = key_scan(&[b"OLD-1", b"OLD-2"], 0, 0);
+        let new = key_scan(&[b"NEW-1", b"NEW-2"], 0, 0);
+
+        let result = evaluate_key_viability(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&old),
+            Some(&new),
+        );
+
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert_eq!(result.coverage, Some(0.0));
+        assert_eq!(result.unique_old, Some(true));
+        assert_eq!(result.unique_new, Some(true));
+    }
+
+    #[test]
+    fn explicit_minimum_coverage_is_inclusive_and_zero_stays_incompatible() {
+        let old = key_scan(&[b"A1", b"A2"], 0, 0);
+        let new = key_scan(&[b"A1", b"A3"], 0, 0);
+
+        let below = evaluate_key_viability_with_min_coverage(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&old),
+            Some(&new),
+            Some(0.6),
+        );
+        assert_eq!(below.status, CheckStatus::Fail);
+
+        let at_floor = evaluate_key_viability_with_min_coverage(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&old),
+            Some(&new),
+            Some(0.5),
+        );
+        assert_eq!(at_floor.status, CheckStatus::Pass);
+
+        let zero_floor = evaluate_key_viability_with_min_coverage(
+            vec![b"loan_id".to_vec()],
+            vec![true],
+            vec![true],
+            Some(&key_scan(&[b"OLD"], 0, 0)),
+            Some(&key_scan(&[b"NEW"], 0, 0)),
+            Some(0.0),
+        );
+        assert_eq!(zero_floor.status, CheckStatus::Fail);
     }
 
     #[test]

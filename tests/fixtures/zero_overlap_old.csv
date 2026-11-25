@@ -1,0 +1,3 @@
+loan_id,balance,status
+OLD-1,100.00,current
+OLD-2,200.00,late

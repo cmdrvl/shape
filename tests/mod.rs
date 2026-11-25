@@ -43,6 +43,8 @@ const TYPE_SHIFT_OLD: &str = "type_shift_old.csv";
 const TYPE_SHIFT_NEW: &str = "type_shift_new.csv";
 const DUP_KEY_OLD: &str = "dup_key_old.csv";
 const DUP_KEY_NEW: &str = "dup_key_new.csv";
+const ZERO_OVERLAP_OLD: &str = "zero_overlap_old.csv";
+const ZERO_OVERLAP_NEW: &str = "zero_overlap_new.csv";
 const EMPTY: &str = "empty.csv";
 const NO_HEADER: &str = "no_header.csv";
 const KEY_LOAN_ID: &str = "loan_id";
@@ -95,6 +97,8 @@ fn fixture_data_row_counts_match_expected() {
         (TYPE_SHIFT_NEW, 2),
         (DUP_KEY_OLD, 3),
         (DUP_KEY_NEW, 3),
+        (ZERO_OVERLAP_OLD, 2),
+        (ZERO_OVERLAP_NEW, 2),
         (EMPTY, 0),
         (NO_HEADER, 0),
     ]);
@@ -404,6 +408,8 @@ fn fixture_names() -> &'static [&'static str] {
         TYPE_SHIFT_NEW,
         DUP_KEY_OLD,
         DUP_KEY_NEW,
+        ZERO_OVERLAP_OLD,
+        ZERO_OVERLAP_NEW,
         EMPTY,
         NO_HEADER,
     ]

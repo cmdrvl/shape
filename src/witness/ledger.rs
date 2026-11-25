@@ -52,6 +52,7 @@ mod tests {
             old: Some(PathBuf::from("old.csv")),
             new: Some(PathBuf::from("new.csv")),
             key: None,
+            min_coverage: None,
             delimiter: None,
             json: false,
             no_witness: false,

@@ -41,6 +41,7 @@ struct CapsuleArgs {
     old: Option<String>,
     new: Option<String>,
     key: Option<String>,
+    min_coverage: Option<f64>,
     delimiter: Option<String>,
     json: bool,
     no_witness: bool,
@@ -133,6 +134,7 @@ pub fn write_run_capsule(
             old: args.old.as_ref().map(|path| path_to_string(path.as_path())),
             new: args.new.as_ref().map(|path| path_to_string(path.as_path())),
             key: args.key.clone(),
+            min_coverage: args.min_coverage,
             delimiter: args.delimiter.clone(),
             json: args.json,
             no_witness: args.no_witness,
@@ -333,6 +335,10 @@ fn build_replay_argv(args: &Args, use_local_profile: bool) -> Vec<String> {
         argv.push("--key".to_owned());
         argv.push(key.clone());
     }
+    if let Some(min_coverage) = args.min_coverage {
+        argv.push("--min-coverage".to_owned());
+        argv.push(min_coverage.to_string());
+    }
     if let Some(delimiter) = args.delimiter.as_ref() {
         argv.push("--delimiter".to_owned());
         argv.push(delimiter.clone());
@@ -425,6 +431,7 @@ mod tests {
             old: Some(old),
             new: Some(new),
             key: Some("loan_id".to_owned()),
+            min_coverage: None,
             delimiter: Some("comma".to_owned()),
             json: true,
             no_witness: false,

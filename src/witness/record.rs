@@ -175,6 +175,7 @@ mod tests {
             old: Some(PathBuf::from("old.csv")),
             new: Some(PathBuf::from("new.csv")),
             key: Some("loan_id".to_owned()),
+            min_coverage: None,
             delimiter: Some("comma".to_owned()),
             json: true,
             no_witness: false,

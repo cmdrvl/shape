@@ -23,6 +23,10 @@ pub struct Args {
     #[arg(long, value_name = "column")]
     pub key: Option<String>,
 
+    /// Require this inclusive key-overlap ratio when both inputs have rows.
+    #[arg(long = "min-coverage", value_name = "ratio", value_parser = parse_min_coverage)]
+    pub min_coverage: Option<f64>,
+
     #[arg(long, value_name = "delim")]
     pub delimiter: Option<String>,
 
@@ -244,6 +248,17 @@ pub(crate) fn color_disabled_by_env(
     no_color.is_some_and(|value| !value.is_empty()) || term.is_some_and(|value| value == "dumb")
 }
 
+fn parse_min_coverage(value: &str) -> Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| "minimum coverage must be a number between 0.0 and 1.0".to_owned())?;
+    if parsed.is_finite() && (0.0..=1.0).contains(&parsed) {
+        Ok(parsed)
+    } else {
+        Err("minimum coverage must be a number between 0.0 and 1.0".to_owned())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clap::error::ErrorKind;
@@ -323,6 +338,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_rejects_min_coverage_outside_inclusive_unit_interval() {
+        let err = Args::parse_from(["shape", "old.csv", "new.csv", "--min-coverage", "1.01"])
+            .expect_err("expected minimum coverage validation failure");
+
+        assert_eq!(err.kind(), ErrorKind::ValueValidation);
+        assert!(err.to_string().contains("--min-coverage"));
+        assert!(err.to_string().contains("between 0.0 and 1.0"));
+    }
+
+    #[test]
     fn parse_accepts_core_and_deferred_flags() {
         let args = Args::parse_from([
             "shape",
@@ -330,6 +355,8 @@ mod tests {
             "new.csv",
             "--key",
             "loan_id",
+            "--min-coverage",
+            "0.75",
             "--delimiter",
             "comma",
             "--json",
@@ -358,6 +385,7 @@ mod tests {
             Some("new.csv")
         );
         assert_eq!(args.key.as_deref(), Some("loan_id"));
+        assert_eq!(args.min_coverage, Some(0.75));
         assert_eq!(args.delimiter.as_deref(), Some("comma"));
         assert!(args.json);
         assert!(args.no_witness);

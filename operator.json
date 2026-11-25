@@ -32,6 +32,7 @@
 
   "options": [
     { "name": "key", "flag": "--key", "type": "string", "description": "Key column for alignment check" },
+    { "name": "min_coverage", "flag": "--min-coverage", "type": "number", "default": "> 0", "description": "Inclusive minimum key-overlap ratio for non-empty inputs; accepts 0.0 through 1.0, while zero overlap remains incompatible" },
     { "name": "delimiter", "flag": "--delimiter", "type": "string", "description": "Force CSV delimiter for both files" },
     { "name": "no_witness", "flag": "--no-witness", "type": "flag", "description": "Suppress ambient witness ledger recording for this compare run" },
     { "name": "capsule_dir", "flag": "--capsule-dir", "type": "file_path", "description": "Write deterministic repro capsule artifacts to this directory (default off)" },
@@ -250,7 +251,7 @@
         "commands": [
           "shape <old.csv> <new.csv> --key <column> --json > shape.json",
           "jq -e '.outcome == \"COMPATIBLE\"' shape.json >/dev/null",
-          "rvl <old.csv> <new.csv> --key <column> --json > rvl.json"
+          "rvl <old.csv> <new.csv> --key <column> --key-mode overlap --json > rvl.json"
         ],
         "stop_conditions": ["REFUSAL", "INCOMPATIBLE"],
         "downstream_tools": ["rvl", "assess", "pack"]
@@ -259,6 +260,7 @@
     "agent_rules": [
       "Run shape before rvl whenever the task is to compare two tabular datasets.",
       "Do not run rvl on the pair when shape reports REFUSAL or INCOMPATIBLE.",
+      "Keyed shape compatibility requires positive overlap; use rvl --key-mode overlap for compatible pairs with added or removed keys.",
       "Use the same key/profile choices for shape and the downstream rvl run."
     ]
   },

@@ -259,6 +259,7 @@ fn args_with_delimiter(
         old: Some(old),
         new: Some(new),
         key: key.map(ToOwned::to_owned),
+        min_coverage: None,
         delimiter: delimiter.map(ToOwned::to_owned),
         json,
         no_witness: false,

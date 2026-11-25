@@ -47,10 +47,10 @@ It tells you *whether comparison is structurally meaningful*.
 
 ```bash
 shape nov.csv dec.csv --key loan_id --json > shape.json \
-  && rvl nov.csv dec.csv --key loan_id --json > rvl.json
+  && rvl nov.csv dec.csv --key loan_id --key-mode overlap --json > rvl.json
 ```
 
-If shape says INCOMPATIBLE, there's no point running rvl. If shape says COMPATIBLE, rvl can proceed with confidence that the structural prerequisites are met.
+If shape says INCOMPATIBLE, there's no point running rvl. Keyed shape compatibility requires positive overlap, so a compatible pair can proceed through rvl's `--key-mode overlap` without the no-overlap refusal.
 
 Both tools share:
 - The same CSV parsing conventions (RFC4180, `sep=` directive, auto-detection, ASCII-trim)
@@ -77,6 +77,7 @@ shape witness <query|last|count> [OPTIONS]
 ### Flags (v0.1 — core)
 
 - `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage). The CLI flag accepts one column. An active profile may declare an ordered multi-column `key:` list (for example, `loan_id + property_id + begin_date`); shape evaluates the complete tuple.
+- `--min-coverage <0.0..=1.0>`: inclusive minimum key-overlap ratio for non-empty inputs. Without this flag, keyed compatibility requires positive overlap; the positive-overlap safety floor remains in force even when `0.0` is supplied.
 - `--delimiter <delim>`: force CSV delimiter for both files (same accepted values as rvl)
 - `--json`: machine output (stable schema; no human formatting)
 - `--no-witness`: suppress witness ledger recording for this run
@@ -208,7 +209,7 @@ No other outcomes.
 5. Preserve component boundaries structurally and check uniqueness on the complete ordered tuple. Never flatten components with a sentinel byte: arbitrary CSV bytes could make distinct tuples collide.
 6. Compute coverage: `key_overlap / max(keys_old, keys_new)`. If both key sets are empty, coverage = 0.0.
 
-**Pass condition:** every key component exists in both files AND complete tuples are unique in both AND no row has an empty component
+**Pass condition:** every key component exists in both files AND complete tuples are unique in both AND no row has an empty component AND, for non-empty inputs, coverage meets the configured minimum (positive by default)
 
 **Output fields:**
 

@@ -83,7 +83,7 @@ fn top_level_capabilities_json_declares_agent_surfaces() {
     );
     assert_eq!(
         value["composition"]["canonical_chains"][0]["commands"][2],
-        "rvl <old.csv> <new.csv> --key <column> --json > rvl.json"
+        "rvl <old.csv> <new.csv> --key <column> --key-mode overlap --json > rvl.json"
     );
 }
 
@@ -103,9 +103,9 @@ fn top_level_robot_docs_guide_names_agent_surface() {
     assert!(
         result
             .stdout
-            .contains("Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl`")
+            .contains("Run `shape <old.csv> <new.csv> --key <column> --json` before `rvl` when comparing two tabular datasets; keyed compatibility requires positive overlap")
     );
-    assert!(result.stdout.contains("Continue to `rvl <old.csv> <new.csv> --key <column> --json` only when shape reports COMPATIBLE"));
+    assert!(result.stdout.contains("Continue to `rvl <old.csv> <new.csv> --key <column> --key-mode overlap --json` only when shape reports COMPATIBLE"));
     assert!(result.stdout.contains("shape doctor --fix is unavailable"));
 }
 

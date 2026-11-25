@@ -28,7 +28,7 @@ Two CSV exports land on your desk — November and December. Before you open a s
 
 - **One verdict, four checks** — schema overlap, key uniqueness, row counts, and type consistency all evaluated in a single invocation. All must pass for COMPATIBLE.
 - **Concrete reasons** — INCOMPATIBLE isn't a dead end. The `reasons` array tells you exactly what broke: "balance changed from numeric to non-numeric" or "key loan_id has duplicates in new file."
-- **Pairs with rvl** — `shape` validates structure, [`rvl`](https://github.com/cmdrvl/rvl) explains numeric changes. Gate your pipeline: `shape old.csv new.csv --key id && rvl old.csv new.csv --key id`.
+- **Pairs with rvl** — `shape` validates structure, [`rvl`](https://github.com/cmdrvl/rvl) explains numeric changes. Gate your pipeline with overlap mode: `shape old.csv new.csv --key id && rvl old.csv new.csv --key id --key-mode overlap`. A compatible keyed pair always has positive key overlap; a zero-overlap pair is INCOMPATIBLE and must not be sent to rvl.
 - **Repro capsules** — `--capsule-dir` writes the inputs, output, and a replay script so any result can be reproduced exactly.
 
 ---
@@ -61,6 +61,11 @@ Types:     12 numeric columns, 0 type shifts
 
 All four checks pass. These files are structurally compatible — safe to proceed with `rvl`, `compare`, or `verify`.
 
+With `--key`, compatibility requires at least one continuing key. If the key sets are disjoint,
+shape returns `INCOMPATIBLE` (exit `1`) so rvl's `--key-mode overlap` is never invoked with no
+rows to compare. Use `--min-coverage <0.0..=1.0>` to require a higher inclusive overlap floor;
+the positive-overlap safety floor remains in force even when `0.0` is supplied.
+
 When a check fails, `--explicit` is what names the columns involved:
 
 ```bash
@@ -81,7 +86,7 @@ Use `--explicit` for local, non-sensitive runs where you want the column names. 
 ```bash
 # Gate a pipeline (shape before rvl):
 $ shape nov.csv dec.csv --key loan_id --json > shape.json \
-    && rvl nov.csv dec.csv --key loan_id --json > rvl.json
+    && rvl nov.csv dec.csv --key loan_id --key-mode overlap --json > rvl.json
 
 # Exit code only (for scripts):
 $ shape old.csv new.csv > /dev/null 2>&1
@@ -183,11 +188,12 @@ Measures how many columns are shared between the two files.
 
 Checks whether a CLI key column or an ordered composite key from a profile is suitable for row alignment.
 
-- **Pass condition:** the complete key tuple is unique in both files and every component is non-empty after ASCII trimming
+- **Pass condition:** the complete key tuple is unique in both files, every component is non-empty after ASCII trimming, and (for non-empty inputs) key overlap is positive. `--min-coverage <0.0..=1.0>` raises or explicitly configures the inclusive overlap floor; the default is `> 0`.
 - Checked when `--key` is provided or the active profile declares a `key:` list
 - Composite components remain structurally separate, so arbitrary CSV bytes cannot create delimiter collisions
 - Missing tokens such as `NA` are ordinary key bytes; they are not treated as empty components
 - Reports: display label `key_column`, authoritative ordered `key_columns` for composites, `unique_old`, `unique_new`, and `coverage`
+- Zero-overlap keyed pairs are `INCOMPATIBLE` with `coverage=0`; do not run rvl on them. For compatible pairs with added or removed keys, use rvl's `--key-mode overlap`.
 - When a registry-backed profile is active, both profile keys and the CLI `--key` value resolve against canonical column IDs before header lookup.
 
 ### Row Granularity
@@ -278,6 +284,7 @@ shape doctor triage --json
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--key <column>` | string | *(none)* | Key column to check for alignment viability (uniqueness, coverage). |
+| `--min-coverage <ratio>` | number | `> 0` | Inclusive minimum key-overlap ratio for non-empty inputs; accepts `0.0` through `1.0`. Zero overlap remains incompatible. |
 | `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
 | `--lock <lockfile>` | path | *(none)* | Verify both inputs against `lock.v0` lockfile members (exact path match, else unique basename; `sha256:`/`blake3:` `bytes_hash`). Not listed → `E_INPUT_NOT_LOCKED`; hash differs → `E_INPUT_DRIFT`. Repeatable. |
@@ -440,7 +447,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # 2. Numeric explanation (only if structurally compatible)
-rvl old.csv new.csv --key id --json > rvl.json
+rvl old.csv new.csv --key id --key-mode overlap --json > rvl.json
 
 # 3. Agent extracts the verdict
 outcome=$(jq -r '.outcome' rvl.json)
@@ -478,7 +485,7 @@ Gate a pipeline (shape before rvl):
 
 ```bash
 shape nov.csv dec.csv --key loan_id --json > shape.json \
-  && rvl nov.csv dec.csv --key loan_id --json > rvl.json
+  && rvl nov.csv dec.csv --key loan_id --key-mode overlap --json > rvl.json
 ```
 
 ---
