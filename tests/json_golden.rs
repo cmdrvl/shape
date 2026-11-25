@@ -201,7 +201,7 @@ fn json_snapshot_incompatible_type_shift() {
                 }]
             }
         },
-        "reasons": ["Type shift: balance changed from numeric to non-numeric"],
+        "reasons": ["Type shift: [REDACTED] changed from numeric to non-numeric"],
         "refusal": null
     });
 

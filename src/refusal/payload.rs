@@ -7,7 +7,10 @@ use crate::refusal::codes::RefusalCode;
 pub struct RefusalPayload {
     pub code: RefusalCode,
     pub message: String,
-    pub detail: Value,
+    /// Boxed on purpose: `serde_json::Value` grows when any crate in the graph enables
+    /// `preserve_order` (cmdrvl-tabular does), and an unboxed value pushed this type, which is
+    /// the `Err` of most fallible functions here, past clippy's `result_large_err` size.
+    pub detail: Box<Value>,
     pub next_command: Option<String>,
 }
 
@@ -20,13 +23,13 @@ impl RefusalPayload {
         Self {
             code,
             message: message.into(),
-            detail: Value::Object(Map::new()),
+            detail: Box::new(Value::Object(Map::new())),
             next_command: None,
         }
     }
 
     pub fn with_detail(mut self, detail: Value) -> Self {
-        self.detail = detail;
+        self.detail = Box::new(detail);
         self
     }
 
@@ -353,7 +356,7 @@ mod tests {
     #[test]
     fn new_payload_starts_with_empty_object_detail() {
         let payload = RefusalPayload::from_code(RefusalCode::EIo);
-        assert_eq!(payload.detail, serde_json::json!({}));
+        assert_eq!(*payload.detail, serde_json::json!({}));
     }
 
     #[test]

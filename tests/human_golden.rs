@@ -139,13 +139,47 @@ fn human_incompatible_matches_golden_snapshot() {
             "Rows:      2 old / 2 new\n",
             "Types:     0 numeric columns, 1 type shift\n\n",
             "Reasons:\n",
-            "  1. Type shift: balance changed from numeric to non-numeric\n"
+            "  1. Type shift: [REDACTED] changed from numeric to non-numeric\n"
         ),
         fixture_path(TYPE_SHIFT_OLD).display(),
         fixture_path(TYPE_SHIFT_NEW).display()
     );
 
     assert_eq!(result.stdout, expected);
+    assert!(
+        !result.stdout.contains("balance"),
+        "default output must not name the shifted column: {}",
+        result.stdout
+    );
+}
+
+#[test]
+fn human_incompatible_explicit_names_the_shifted_column() {
+    let default = assert_human_stdout_only(TYPE_SHIFT_OLD, TYPE_SHIFT_NEW, &[], 1, "default");
+    let explicit = assert_human_stdout_only(
+        TYPE_SHIFT_OLD,
+        TYPE_SHIFT_NEW,
+        &["--explicit"],
+        1,
+        "human incompatible explicit output",
+    );
+
+    // The only reason line that names the column under --explicit is the one that was redacted.
+    assert!(
+        explicit
+            .stdout
+            .contains("  1. Type shift: balance changed from numeric to non-numeric\n"),
+        "{}",
+        explicit.stdout
+    );
+    assert_eq!(
+        explicit
+            .stdout
+            .replace("balance", "[REDACTED]")
+            .lines()
+            .last(),
+        default.stdout.lines().last()
+    );
 }
 
 #[test]
@@ -171,13 +205,31 @@ fn human_incompatible_with_key_non_viable_matches_golden_snapshot() {
             "Rows:      3 old / 3 new (0 removed, 1 added, 2 overlap)\n",
             "Types:     1 numeric columns, 0 type shifts\n\n",
             "Reasons:\n",
-            "  1. Key viability: loan_id has 1 duplicate value in old file\n"
+            "  1. Key viability: [REDACTED] has 1 duplicate value in old file\n"
         ),
         fixture_path(DUP_KEY_OLD).display(),
         fixture_path(DUP_KEY_NEW).display()
     );
 
     assert_eq!(result.stdout, expected);
+}
+
+#[test]
+fn human_incompatible_key_viability_explicit_names_the_key_column() {
+    let explicit = assert_human_stdout_only(
+        DUP_KEY_OLD,
+        DUP_KEY_NEW,
+        &["--key", KEY_LOAN_ID, "--explicit"],
+        1,
+        "human incompatible key viability explicit output",
+    );
+    assert!(
+        explicit
+            .stdout
+            .contains("  1. Key viability: loan_id has 1 duplicate value in old file\n"),
+        "{}",
+        explicit.stdout
+    );
 }
 
 #[test]

@@ -100,7 +100,12 @@ fn human_incompatible_matches_golden_snapshot() {
     assert!(
         result
             .stdout
-            .contains("Type shift: balance changed from numeric to non-numeric")
+            .contains("Type shift: [REDACTED] changed from numeric to non-numeric")
+    );
+    assert!(
+        !result.stdout.contains("balance"),
+        "default output must not name the shifted column: {}",
+        result.stdout
     );
 }
 

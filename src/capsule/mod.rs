@@ -156,7 +156,7 @@ pub fn write_run_capsule(
             refusal: refusal.map(|payload| CapsuleRefusal {
                 code: payload.code.as_str(),
                 message: payload.message.clone(),
-                detail: payload.detail.clone(),
+                detail: (*payload.detail).clone(),
                 next_command: payload.next_command.clone(),
             }),
         },
