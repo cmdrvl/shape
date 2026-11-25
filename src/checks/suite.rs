@@ -132,6 +132,15 @@ pub fn assemble_check_suite_with_min_coverage(
 }
 
 pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
+    build_reasons_with_column_names(suite, true)
+}
+
+/// Build operator-facing reasons, hiding identifying column names by default.
+pub fn build_reasons_for_output(suite: &CheckSuite, explicit: bool) -> Vec<String> {
+    build_reasons_with_column_names(suite, explicit)
+}
+
+fn build_reasons_with_column_names(suite: &CheckSuite, show_column_names: bool) -> Vec<String> {
     let mut reasons = Vec::new();
 
     if suite.schema_overlap.status == CheckStatus::Fail {
@@ -156,6 +165,7 @@ pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
                 &key.key_columns,
                 &key.found_components_old,
                 "old",
+                show_column_names,
             );
         }
         if !key.found_new {
@@ -164,10 +174,11 @@ pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
                 &key.key_columns,
                 &key.found_components_new,
                 "new",
+                show_column_names,
             );
         }
         if key.found_old && key.found_new {
-            let key_name = composite_key_name(key);
+            let key_name = composite_key_name(key, show_column_names);
             push_key_viability_count_reasons(
                 &mut reasons,
                 &key_name,
@@ -198,7 +209,7 @@ pub fn build_reasons(suite: &CheckSuite) -> Vec<String> {
 
     if suite.type_consistency.status == CheckStatus::Fail {
         for shift in &suite.type_consistency.type_shifts {
-            let column = String::from_utf8_lossy(&shift.column);
+            let column = column_name(&shift.column, show_column_names);
             reasons.push(format!(
                 "Type shift: {} changed from {} to {}",
                 column,
@@ -216,10 +227,11 @@ fn push_missing_key_component_reasons(
     key_columns: &[Vec<u8>],
     found_components: &[bool],
     file_label: &str,
+    show_column_names: bool,
 ) {
     for (column, found) in key_columns.iter().zip(found_components) {
         if !found {
-            let key_name = String::from_utf8_lossy(column);
+            let key_name = column_name(column, show_column_names);
             reasons.push(format!(
                 "Key viability: {key_name} not found in {file_label} file"
             ));
@@ -227,15 +239,23 @@ fn push_missing_key_component_reasons(
     }
 }
 
-fn composite_key_name(key: &KeyViabilityResult) -> String {
+fn composite_key_name(key: &KeyViabilityResult, show_column_names: bool) -> String {
     if key.key_columns.len() > 1 {
         key.key_columns
             .iter()
-            .map(|column| String::from_utf8_lossy(column).into_owned())
+            .map(|column| column_name(column, show_column_names))
             .collect::<Vec<_>>()
             .join(" + ")
     } else {
-        String::from_utf8_lossy(&key.key_column).into_owned()
+        column_name(&key.key_column, show_column_names)
+    }
+}
+
+fn column_name(column: &[u8], show_column_names: bool) -> String {
+    if show_column_names {
+        String::from_utf8_lossy(column).into_owned()
+    } else {
+        "[REDACTED]".to_owned()
     }
 }
 

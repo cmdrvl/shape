@@ -10,7 +10,7 @@ use clap::{ArgAction, Parser, Subcommand};
     version,
     about = "Structural comparability gate for tabular datasets (CSV, TSV, JSONL, Parquet, XLSX)",
     override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor [health|capabilities|triage|robot-docs] [--json]",
-    after_help = "Column names and schema detail are redacted by default: counts, ratios and statuses only.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nUse it for local, non-sensitive runs; prefer the default for logged or shared output.\nNOT yet redacted, with or without --explicit: file paths, the --key column you pass, and free-text `reasons` (known gap: bd-pitd). Do not treat default output as zero-retention safe yet.",
+    after_help = "Column names and schema detail are redacted by default: counts, ratios and statuses only.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nFree-text reasons redact identifying column names as [REDACTED] by default; file paths and structured key metadata remain visible.\nUse it for local, non-sensitive runs; prefer the default for logged or shared output.",
     subcommand_negates_reqs = true
 )]
 pub struct Args {
@@ -67,7 +67,7 @@ pub struct Args {
     #[arg(long = "max-bytes", value_name = "n")]
     pub max_bytes: Option<u64>,
 
-    /// Show column names and other identifying metadata in output (default: column names redacted; free-text reasons, file paths and the --key column are not yet redacted, see bd-pitd).
+    /// Show column names and other identifying metadata in output (default: column names and reason text are redacted; file paths and structured key metadata remain visible).
     #[arg(long)]
     pub explicit: bool,
 

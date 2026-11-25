@@ -3,7 +3,8 @@ use std::path::Path;
 
 use crate::capsule;
 use crate::checks::suite::{
-    CheckSuite, Outcome, assemble_check_suite_with_min_coverage, build_reasons, determine_outcome,
+    CheckSuite, Outcome, assemble_check_suite_with_min_coverage, build_reasons_for_output,
+    determine_outcome,
 };
 use crate::cli::args::Args;
 use crate::cli::delimiter::parse_delimiter;
@@ -385,7 +386,7 @@ fn execute_pipeline(
         include_set.as_ref(),
         args.min_coverage,
     );
-    let reasons = build_reasons(&suite);
+    let reasons = build_reasons_for_output(&suite, args.explicit);
     let outcome = determine_outcome(&suite);
 
     Ok(PipelineDomainResult {

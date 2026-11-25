@@ -195,8 +195,8 @@ fn cli_human_incompatible_routes_to_stdout_with_exit_one() {
     assert!(
         result
             .stdout
-            .contains("Type shift: balance changed from numeric to non-numeric"),
-        "expected deterministic type-shift reason in human output: {}",
+            .contains("Type shift: [REDACTED] changed from numeric to non-numeric"),
+        "expected redacted type-shift reason in human output: {}",
         result.stdout
     );
 }

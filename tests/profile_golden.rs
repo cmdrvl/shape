@@ -368,8 +368,10 @@ fn profile_composite_key_missing_component_nulls_row_key_metrics() {
             .as_array()
             .expect("reasons array")
             .iter()
-            .any(|reason| reason.as_str() == Some("Key viability: second not found in new file")),
-        "missing component reason should name second: {}",
+            .any(
+                |reason| reason.as_str() == Some("Key viability: [REDACTED] not found in new file")
+            ),
+        "missing component reason should redact the column: {}",
         payload["reasons"]
     );
 

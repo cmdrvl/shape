@@ -163,6 +163,8 @@ Reports:
 One or more structural checks failed. The `reasons` array explains exactly what broke.
 
 Reports same fields as COMPATIBLE, plus `reasons` — a list of human-readable strings explaining each failure.
+By default, identifying column names inside `reasons` are rendered as
+`[REDACTED]`; `--explicit` preserves the named reason text.
 
 ### 3. REFUSAL
 
@@ -582,7 +584,7 @@ All four checks are always present (when not REFUSAL), even passing ones. This l
       ]
     }
   },
-  "reasons": ["Type shift: balance changed from numeric to non-numeric"],
+  "reasons": ["Type shift: [REDACTED] changed from numeric to non-numeric"],
   "refusal": null
 }
 ```
@@ -817,15 +819,17 @@ Next: provide non-empty datasets.
 
 ### Reasons templates
 
-Exact format strings for the `reasons` array (both human and JSON):
+The reason structure and counts are stable in both modes. In default output,
+`{column}` is `[REDACTED]`; with `--explicit`, it is the encoded or human
+column name as appropriate.
 
 ```
 "Schema overlap: 0 common columns (old={n}, new={n})"
-"Key viability: {column} has {n} duplicate values in {file} file"
-"Key viability: {column} has {n} empty values in {file} file"
-"Key viability: {column} not found in {file} file"
-"Type shift: {column} changed from numeric to non-numeric"
-"Type shift: {column} changed from non-numeric to numeric"
+"Key viability: [REDACTED] has {n} duplicate values in {file} file"
+"Key viability: [REDACTED] has {n} empty values in {file} file"
+"Key viability: [REDACTED] not found in {file} file"
+"Type shift: [REDACTED] changed from numeric to non-numeric"
+"Type shift: [REDACTED] changed from non-numeric to numeric"
 ```
 
 Multiple reasons can accumulate (e.g., key has duplicates AND a type shift occurred).

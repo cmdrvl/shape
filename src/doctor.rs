@@ -150,10 +150,10 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
         "- Pass `--explicit` to show column names and other identifying metadata, e.g. `shape <old.csv> <new.csv> --key <column> --json --explicit`."
     );
     println!(
-        "- NOT yet redacted, with or without `--explicit`: file paths, the `--key` column you passed, and the free-text `reasons` strings (which can name columns). Known gap: bd-pitd. Do not treat default output as zero-retention safe until it is fixed."
+        "- Free-text `reasons` redact identifying column names as `[REDACTED]` by default; file paths and structured key metadata remain visible."
     );
     println!(
-        "- Use `--explicit` for local non-sensitive runs; prefer the default for logged, shared, or veil/airlock workflows, keeping the gap above in mind."
+        "- Use `--explicit` for local non-sensitive runs; prefer the default for logged, shared, or veil/airlock workflows."
     );
     println!();
     println!("Composition:");

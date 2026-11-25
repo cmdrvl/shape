@@ -11,4 +11,4 @@ Rows:      2 old / 2 new
 Types:     0 numeric columns, 1 type shift
 
 Reasons:
-  1. Type shift: balance changed from numeric to non-numeric
+  1. Type shift: [REDACTED] changed from numeric to non-numeric

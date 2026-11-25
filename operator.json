@@ -44,7 +44,7 @@
     { "name": "lock", "flag": "--lock", "type": "file_path", "repeatable": true, "description": "Verify both inputs against lock.v0 lockfile members (sha256/blake3 bytes_hash); refuses E_INPUT_NOT_LOCKED or E_INPUT_DRIFT" },
     { "name": "max_rows", "flag": "--max-rows", "type": "integer", "description": "Reserved in v0; row-limit refusal is deferred" },
     { "name": "max_bytes", "flag": "--max-bytes", "type": "integer", "description": "Reserved in v0; byte-limit refusal is deferred" },
-    { "name": "explicit", "flag": "--explicit", "type": "flag", "description": "Show column names and other identifying metadata in output (default: column names redacted; free-text reasons, file paths and the --key column are not yet redacted, see bd-pitd)" },
+    { "name": "explicit", "flag": "--explicit", "type": "flag", "description": "Show column names and other identifying metadata in output (default: column names and reason text are redacted; file paths and structured key metadata remain visible)" },
     { "name": "schema", "flag": "--schema", "type": "flag", "description": "Print JSON Schema for shape.v0 output format and exit 0" },
     { "name": "describe", "flag": "--describe", "type": "flag", "description": "Print compiled operator.json and exit 0 without positional args" },
     { "name": "robot_triage", "flag": "--robot-triage", "type": "flag", "description": "Deprecated alias of `shape doctor triage --json`: emits the cmdrvl.doctor.v1 triage report without positional args" }

@@ -74,7 +74,7 @@ fn run_handoff_emits_incompatible_in_human_and_json_modes() {
     assert!(
         human
             .output
-            .contains("Type shift: balance changed from numeric to non-numeric")
+            .contains("Type shift: [REDACTED] changed from numeric to non-numeric")
     );
 
     assert_eq!(json.outcome, Outcome::Incompatible);
@@ -87,7 +87,7 @@ fn run_handoff_emits_incompatible_in_human_and_json_modes() {
     );
     assert_eq!(
         value["reasons"][0],
-        "Type shift: balance changed from numeric to non-numeric"
+        "Type shift: [REDACTED] changed from numeric to non-numeric"
     );
     assert!(value["refusal"].is_null());
 }
