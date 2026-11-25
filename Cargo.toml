@@ -20,6 +20,7 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 
 [dev-dependencies]
 spine-rules = { git = "https://github.com/cmdrvl/spine-rules" }

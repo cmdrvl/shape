@@ -1,7 +1,7 @@
 {
   "schema_version": "operator.v0",
   "name": "shape",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Structural comparability gate — deterministically answers whether two CSV datasets can be compared",
   "repository": "https://github.com/cmdrvl/shape",
   "license": "MIT",
@@ -35,7 +35,7 @@
     { "name": "capsule_dir", "flag": "--capsule-dir", "type": "file_path", "description": "Write deterministic repro capsule artifacts to this directory (default off)" },
     { "name": "profile", "flag": "--profile", "type": "file_path", "description": "Scope checks to a profile file's include_columns" },
     { "name": "profile_id", "flag": "--profile-id", "type": "string", "description": "Resolve a frozen profile from ~/.cmdrvl/config/profile/profiles; legacy ~/.epistemic/profiles is copied on first default use" },
-    { "name": "lock", "flag": "--lock", "type": "file_path", "repeatable": true, "description": "Reserved in v0; lock verification is deferred" },
+    { "name": "lock", "flag": "--lock", "type": "file_path", "repeatable": true, "description": "Verify both inputs against lock.v0 lockfile members (sha256/blake3 bytes_hash); refuses E_INPUT_NOT_LOCKED or E_INPUT_DRIFT" },
     { "name": "max_rows", "flag": "--max-rows", "type": "integer", "description": "Reserved in v0; row-limit refusal is deferred" },
     { "name": "max_bytes", "flag": "--max-bytes", "type": "integer", "description": "Reserved in v0; byte-limit refusal is deferred" },
     { "name": "explicit", "flag": "--explicit", "type": "flag", "description": "Show column names and other identifying metadata in output (default: redacted for zero-retention safety)" },

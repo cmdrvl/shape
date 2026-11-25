@@ -6,6 +6,7 @@ pub mod cli;
 pub mod csv;
 pub mod doctor;
 pub mod format;
+pub mod lock;
 pub mod normalize;
 pub mod orchestrator;
 pub mod output;
@@ -215,12 +216,6 @@ fn run_command(
 fn emit_reserved_flag_warnings(args: &cli::args::Args) {
     use std::io::Write;
     let mut stderr = std::io::stderr();
-    if !args.lock.is_empty() {
-        let _ = writeln!(
-            stderr,
-            "shape: note: --lock accepted but lock verification is deferred in v0"
-        );
-    }
     if args.max_rows.is_some() {
         let _ = writeln!(
             stderr,

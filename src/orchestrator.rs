@@ -243,6 +243,16 @@ fn execute_pipeline(
         .map(|profile| profile.key_columns.clone())
         .unwrap_or_default();
 
+    if !args.lock.is_empty() {
+        for input in [old_path, new_path] {
+            crate::lock::verify_input(input, &args.lock).map_err(|refusal| PipelineRefusal {
+                refusal,
+                dialect_old: None,
+                dialect_new: None,
+            })?;
+        }
+    }
+
     let old_input = parse_input_file_with_context(old_path, forced_delimiter, &old_file, &new_file)
         .map_err(|err| PipelineRefusal {
             refusal: err.refusal,

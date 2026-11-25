@@ -268,7 +268,7 @@ shape witness <query|last|count> [OPTIONS]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--lock <lockfile>` | path | *(none)* | Lock verification for inputs. |
+| `--lock <lockfile>` | path | *(none)* | Verify both inputs against `lock.v0` lockfile members (exact path match, else unique basename; `sha256:`/`blake3:` `bytes_hash`). Not listed → `E_INPUT_NOT_LOCKED`; hash differs → `E_INPUT_DRIFT`. Repeatable. |
 | `--max-rows <n>` | integer | *(unlimited)* | Row-limit refusal. |
 | `--max-bytes <n>` | integer | *(unlimited)* | Byte-limit refusal. |
 
@@ -525,7 +525,7 @@ A cell in the new file has a value that can't be parsed as a number (e.g., `#REF
 | **In-memory** | Both files are loaded fully into memory. No streaming mode yet. |
 | **No ad hoc column filtering** | Use `--profile` for deterministic scoped checks; there is no separate include/exclude flag language in `shape`. |
 | **No content sampling** | shape doesn't look at data distributions or outliers — it checks structure only. |
-| **Lock/size gates deferred** | `--lock`, `--max-rows`, and `--max-bytes` are parsed but do not gate runtime behavior in v0. `--profile` and `--profile-id` do affect check scoping. |
+| **Size gates deferred** | `--max-rows` and `--max-bytes` are parsed but do not gate runtime behavior in v0. (`--lock` is enforced: see the CLI reference.) `--profile` and `--profile-id` do affect check scoping. |
 
 ---
 
