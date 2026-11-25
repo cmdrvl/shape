@@ -97,7 +97,7 @@
       ],
       "current_runtime_behavior": {
         "success_exit_code": 0,
-        "no_match_exit_code": 1,
+        "no_match_exit_code": 0,
         "error_exit_code": 2,
         "ledger_path_resolution": [
           "EPISTEMIC_WITNESS",

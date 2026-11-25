@@ -23,4 +23,5 @@ golden_rules_suite! {
         "/nonexistent/new.csv",
         "--json", "--no-witness",
     ],
+    fixture_empty_query_args: &["witness", "query", "--tool", "__empty__", "--json"],
 }

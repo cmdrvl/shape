@@ -72,41 +72,47 @@ fn run_compare_with_ledger(extra_args: &[&str], ledger_path: &Path) -> ShapeInvo
 }
 
 #[test]
-fn witness_no_match_semantics_use_exit_one_and_expected_streams() {
+fn witness_no_match_semantics_use_exit_zero_and_expected_streams() {
     let ledger = unique_ledger_path("missing");
     let _ = fs::remove_file(&ledger);
 
     let query_human = run_shape_with_ledger(["witness", "query"], &ledger);
-    assert_eq!(query_human.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(query_human.status, 0);
     assert!(query_human.stdout.trim().is_empty());
     assert!(query_human.stderr.contains("no matching witness records"));
 
     let query_json = run_shape_with_ledger(["witness", "query", "--json"], &ledger);
-    assert_eq!(query_json.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(query_json.status, 0);
     assert!(query_json.stderr.contains("no matching witness records"));
     let query_payload: serde_json::Value =
         serde_json::from_str(query_json.stdout.trim()).expect("query --json should return JSON");
     assert_eq!(query_payload, serde_json::json!([]));
 
     let last_human = run_shape_with_ledger(["witness", "last"], &ledger);
-    assert_eq!(last_human.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(last_human.status, 0);
     assert!(last_human.stdout.trim().is_empty());
     assert!(last_human.stderr.contains("witness ledger is empty"));
 
     let last_json = run_shape_with_ledger(["witness", "last", "--json"], &ledger);
-    assert_eq!(last_json.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(last_json.status, 0);
     assert!(last_json.stderr.contains("witness ledger is empty"));
     let last_payload: serde_json::Value =
         serde_json::from_str(last_json.stdout.trim()).expect("last --json should return JSON");
     assert_eq!(last_payload, serde_json::Value::Null);
 
     let count_human = run_shape_with_ledger(["witness", "count"], &ledger);
-    assert_eq!(count_human.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(count_human.status, 0);
     assert!(count_human.stdout.trim().is_empty());
     assert!(count_human.stderr.contains("no matching witness records"));
 
     let count_json = run_shape_with_ledger(["witness", "count", "--json"], &ledger);
-    assert_eq!(count_json.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(count_json.status, 0);
     assert!(count_json.stderr.contains("no matching witness records"));
     let count_payload: serde_json::Value =
         serde_json::from_str(count_json.stdout.trim()).expect("count --json should return JSON");

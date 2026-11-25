@@ -635,8 +635,7 @@ shape witness count [--tool <name>] [--since <iso8601>] [--until <iso8601>] \
 
 | Code | Meaning |
 |------|---------|
-| `0` | One or more matching records returned |
-| `1` | No matches (or empty ledger for `last`) |
+| `0` | Read succeeded, including no matches (JSON is `[]`, `{"count":0}`, or `null`) |
 | `2` | CLI parse error or witness internal error |
 
 ### Ledger Location

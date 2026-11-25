@@ -130,6 +130,7 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
     println!("- shape doctor capabilities --json");
     println!("- shape doctor triage --json");
     println!("- shape doctor robot-docs");
+    println!("- shape witness query|last|count [--json]");
     println!("- shape doctor --fix");
     println!();
     println!("Deprecated aliases (still work; same cmdrvl.doctor.v1 output):");
@@ -141,6 +142,7 @@ pub fn emit_robot_docs(action: Option<&RobotDocsAction>) -> Result<u8, Box<dyn s
     println!("- 0: COMPATIBLE (doctor: healthy)");
     println!("- 1: INCOMPATIBLE, a halting verdict (doctor: unhealthy, an error finding)");
     println!("- 2: refusal or command-line usage error");
+    println!("- witness empty reads also exit 0: [] / {{count:0}} / null; malformed reads exit 2");
     println!();
     println!("Redaction (--explicit):");
     println!(

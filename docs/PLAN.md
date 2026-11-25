@@ -109,8 +109,7 @@ Profile scoping is live. Lock and size gates remain deferred until the respectiv
 - `2`: REFUSAL / CLI error
 
 For `shape witness <...>` subcommands:
-- `0`: success
-- `1`: no matching records / empty ledger
+- `0`: success, including no matching records / empty ledger (the JSON value is `[]`, `{"count":0}`, or `null`)
 - `2`: CLI error / witness refusal
 
 ### Streams

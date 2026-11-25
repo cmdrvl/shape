@@ -175,7 +175,7 @@ fn witness_count_json_returns_count_object() {
 }
 
 #[test]
-fn witness_query_no_match_json_contract_stays_stable() {
+fn witness_query_no_match_json_contract_exits_zero() {
     let ledger = unique_ledger_path("no-match");
     fs::write(&ledger, sample_ledger_contents()).expect("write witness ledger fixture");
 
@@ -184,7 +184,8 @@ fn witness_query_no_match_json_contract_stays_stable() {
         &ledger,
     );
 
-    assert_eq!(result.status, 1);
+    // Planted negative: the old exit-1 behavior must fail this assertion.
+    assert_eq!(result.status, 0);
     assert!(result.stderr.contains("shape: no matching witness records"));
     let payload: Value =
         serde_json::from_str(result.stdout.trim()).expect("query no-match should return JSON");

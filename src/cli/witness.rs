@@ -37,7 +37,7 @@ impl WitnessResponse {
 
     fn no_match_human(message: &str) -> Self {
         Self {
-            exit_code: 1,
+            exit_code: 0,
             stdout: None,
             stderr: Some(format!("{message}\n")),
         }
@@ -46,7 +46,7 @@ impl WitnessResponse {
     fn no_match_json<T: Serialize>(value: &T, message: &str) -> Self {
         match serde_json::to_string(value) {
             Ok(encoded) => Self {
-                exit_code: 1,
+                exit_code: 0,
                 stdout: Some(format!("{encoded}\n")),
                 stderr: Some(format!("{message}\n")),
             },
@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn query_no_matches_returns_exit_1_and_json_array() {
+    fn query_no_matches_returns_exit_0_and_json_array() {
         let records = vec![sample_record(
             "blake3:1",
             "2026-02-01T00:00:00Z",
@@ -465,7 +465,8 @@ mod tests {
         let action = query_action(None, None, None, Some("REFUSAL"), None, 20, true);
 
         let response = execute_with_records(&action, &records);
-        assert_eq!(response.exit_code, 1);
+        // Planted negative: the old exit-1 behavior must fail this assertion.
+        assert_eq!(response.exit_code, 0);
         assert!(
             response
                 .stderr
@@ -507,9 +508,10 @@ mod tests {
     }
 
     #[test]
-    fn last_on_empty_ledger_returns_exit_1() {
+    fn last_on_empty_ledger_returns_exit_0() {
         let response = execute_with_records(&last_action(false), &[]);
-        assert_eq!(response.exit_code, 1);
+        // Planted negative: the old exit-1 behavior must fail this assertion.
+        assert_eq!(response.exit_code, 0);
         assert!(response.stdout.is_none());
         assert!(
             response
@@ -555,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn count_with_zero_matches_returns_exit_1() {
+    fn count_with_zero_matches_returns_exit_0() {
         let records = vec![sample_record(
             "blake3:1",
             "2026-02-01T00:00:00Z",
@@ -565,7 +567,8 @@ mod tests {
         )];
         let action = count_action(None, None, None, Some("REFUSAL"), None, false);
         let response = execute_with_records(&action, &records);
-        assert_eq!(response.exit_code, 1);
+        // Planted negative: the old exit-1 behavior must fail this assertion.
+        assert_eq!(response.exit_code, 0);
         assert_eq!(response.stdout, None);
         assert!(
             response
