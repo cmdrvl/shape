@@ -156,30 +156,62 @@ pub fn parse_input_file_with_context(
     old_file_for_next_command: &str,
     new_file_for_next_command: &str,
 ) -> Result<ParsedInput, ParseInputError> {
-    let raw_bytes = read_input_bytes(path).map_err(ParseInputError::without_dialect)?;
+    parse_input_file_with_sheet(
+        path,
+        None,
+        forced_delimiter,
+        old_file_for_next_command,
+        new_file_for_next_command,
+    )
+}
+
+/// [`parse_input_file_with_context`] with a worksheet selector.
+///
+/// `sheet` selects the worksheet of an `.xlsx`/`.xls` input and is ignored otherwise. JSONL,
+/// Parquet and XLSX inputs are rendered to comma-separated CSV by the shared tabular reader
+/// first; `forced_delimiter` and `sep=` directives do not apply to that rendering.
+pub fn parse_input_file_with_sheet(
+    path: &Path,
+    sheet: Option<&str>,
+    forced_delimiter: Option<u8>,
+    old_file_for_next_command: &str,
+    new_file_for_next_command: &str,
+) -> Result<ParsedInput, ParseInputError> {
+    let tabular = crate::tabular_input::is_tabular_path(path);
+    let raw_bytes = if tabular {
+        crate::tabular_input::render_csv(path, sheet)
+    } else {
+        read_input_bytes(path)
+    }
+    .map_err(ParseInputError::without_dialect)?;
     let file_label = path.to_string_lossy().to_string();
 
-    let sep = detect_sep_directive(&raw_bytes);
-    let (delimiter, consumed_bytes, primary_escape, allow_escape_fallback) =
-        if let Some(delimiter) = forced_delimiter {
-            (
-                delimiter,
-                sep.map_or(0, |directive| directive.consumed_bytes),
-                EscapeMode::None,
-                true,
-            )
-        } else if let Some(sep) = sep {
-            (sep.delimiter, sep.consumed_bytes, EscapeMode::None, true)
-        } else {
-            let autodetected = detect_dialect(
-                &raw_bytes,
-                &file_label,
-                old_file_for_next_command,
-                new_file_for_next_command,
-            )
-            .map_err(ParseInputError::without_dialect)?;
-            (autodetected.delimiter, 0usize, autodetected.escape, false)
-        };
+    let sep = if tabular {
+        None
+    } else {
+        detect_sep_directive(&raw_bytes)
+    };
+    let (delimiter, consumed_bytes, primary_escape, allow_escape_fallback) = if tabular {
+        (b',', 0usize, EscapeMode::None, false)
+    } else if let Some(delimiter) = forced_delimiter {
+        (
+            delimiter,
+            sep.map_or(0, |directive| directive.consumed_bytes),
+            EscapeMode::None,
+            true,
+        )
+    } else if let Some(sep) = sep {
+        (sep.delimiter, sep.consumed_bytes, EscapeMode::None, true)
+    } else {
+        let autodetected = detect_dialect(
+            &raw_bytes,
+            &file_label,
+            old_file_for_next_command,
+            new_file_for_next_command,
+        )
+        .map_err(ParseInputError::without_dialect)?;
+        (autodetected.delimiter, 0usize, autodetected.escape, false)
+    };
 
     let (headers, data_offset, escape) = parse_headers_with_escape_modes(
         path,

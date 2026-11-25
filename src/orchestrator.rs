@@ -8,7 +8,7 @@ use crate::checks::suite::{
 use crate::cli::args::Args;
 use crate::cli::delimiter::parse_delimiter;
 use crate::csv::dialect::Dialect;
-use crate::csv::input::{ParsedInput, parse_input_file_with_context};
+use crate::csv::input::{ParsedInput, parse_input_file_with_sheet};
 use crate::normalize::headers::{
     ascii_trim, canonicalize_header_identifier, canonicalize_headers_or_refusal,
 };
@@ -253,19 +253,31 @@ fn execute_pipeline(
         }
     }
 
-    let old_input = parse_input_file_with_context(old_path, forced_delimiter, &old_file, &new_file)
-        .map_err(|err| PipelineRefusal {
-            refusal: err.refusal,
-            dialect_old: err.dialect,
-            dialect_new: None,
-        })?;
+    let old_input = parse_input_file_with_sheet(
+        old_path,
+        args.old_sheet_selector(),
+        forced_delimiter,
+        &old_file,
+        &new_file,
+    )
+    .map_err(|err| PipelineRefusal {
+        refusal: err.refusal,
+        dialect_old: err.dialect,
+        dialect_new: None,
+    })?;
 
-    let new_input = parse_input_file_with_context(new_path, forced_delimiter, &old_file, &new_file)
-        .map_err(|err| PipelineRefusal {
-            refusal: err.refusal,
-            dialect_old: Some(old_input.dialect),
-            dialect_new: err.dialect,
-        })?;
+    let new_input = parse_input_file_with_sheet(
+        new_path,
+        args.new_sheet_selector(),
+        forced_delimiter,
+        &old_file,
+        &new_file,
+    )
+    .map_err(|err| PipelineRefusal {
+        refusal: err.refusal,
+        dialect_old: Some(old_input.dialect),
+        dialect_new: err.dialect,
+    })?;
 
     enforce_pre_scan_empty_guards(&old_input, &new_input).map_err(|refusal| PipelineRefusal {
         refusal,
@@ -924,6 +936,9 @@ mod tests {
         Args {
             old: Some(old),
             new: Some(new),
+            sheet: None,
+            old_sheet: None,
+            new_sheet: None,
             key: key.map(ToOwned::to_owned),
             min_coverage: None,
             delimiter: None,

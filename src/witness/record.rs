@@ -77,7 +77,7 @@ impl WitnessRecord {
             .iter()
             .map(|path| path.to_string_lossy().into_owned())
             .collect();
-        let params = serde_json::json!({
+        let mut params = serde_json::json!({
             "key": args.key.clone(),
             "delimiter": args.delimiter.clone(),
             "json": args.json,
@@ -92,6 +92,18 @@ impl WitnessRecord {
             "max_rows": args.max_rows,
             "max_bytes": args.max_bytes,
         });
+        // Worksheet selectors are recorded only when given, so CSV runs keep their exact params.
+        if let Some(object) = params.as_object_mut() {
+            for (name, value) in [
+                ("sheet", &args.sheet),
+                ("old_sheet", &args.old_sheet),
+                ("new_sheet", &args.new_sheet),
+            ] {
+                if let Some(value) = value {
+                    object.insert(name.to_owned(), serde_json::Value::String(value.clone()));
+                }
+            }
+        }
 
         Self {
             id: String::new(),
@@ -174,6 +186,9 @@ mod tests {
         Args {
             old: Some(PathBuf::from("old.csv")),
             new: Some(PathBuf::from("new.csv")),
+            sheet: None,
+            old_sheet: None,
+            new_sheet: None,
             key: Some("loan_id".to_owned()),
             min_coverage: None,
             delimiter: Some("comma".to_owned()),

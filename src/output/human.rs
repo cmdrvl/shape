@@ -92,6 +92,9 @@ fn default_next_step(code: RefusalCode) -> &'static str {
         RefusalCode::EInputNotLocked => "re-run with correct --lock or lock inputs first.",
         RefusalCode::EInputDrift => "use the locked file; regenerate lock if expected.",
         RefusalCode::ETooLarge => "increase limit or split input.",
+        RefusalCode::EInputFormat => {
+            "pick the worksheet with --sheet, or fix/re-export the input (CSV always works)."
+        }
     }
 }
 

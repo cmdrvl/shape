@@ -51,6 +51,9 @@ mod tests {
         let args = Args {
             old: Some(PathBuf::from("old.csv")),
             new: Some(PathBuf::from("new.csv")),
+            sheet: None,
+            old_sheet: None,
+            new_sheet: None,
             key: None,
             min_coverage: None,
             delimiter: None,

@@ -8,7 +8,7 @@ use clap::{ArgAction, Parser, Subcommand};
 #[command(
     name = "shape",
     version,
-    about = "Structural comparability gate for CSV datasets",
+    about = "Structural comparability gate for tabular datasets (CSV, TSV, JSONL, Parquet, XLSX)",
     override_usage = "shape <old.csv> <new.csv> [OPTIONS]\n       shape --robot-triage\n       shape capabilities --json\n       shape robot-docs guide\n       shape witness <query|last|count> [OPTIONS]\n       shape doctor [health|capabilities|triage|robot-docs] [--json]",
     after_help = "Column names and schema detail are redacted by default: counts, ratios and statuses only.\nPass --explicit to show column names and other identifying metadata (schema old_only/new_only, type-shift columns).\nUse it for local, non-sensitive runs; prefer the default for logged or shared output.\nNOT yet redacted, with or without --explicit: file paths, the --key column you pass, and free-text `reasons` (known gap: bd-pitd). Do not treat default output as zero-retention safe yet.",
     subcommand_negates_reqs = true
@@ -19,6 +19,19 @@ pub struct Args {
 
     #[arg(value_name = "new.csv", required_unless_present_any = ["describe", "schema", "robot_triage"])]
     pub new: Option<PathBuf>,
+
+    /// Worksheet for both inputs when they are workbooks: a sheet name or a 0-based index.
+    /// Required for a workbook with more than one sheet. Ignored for other formats.
+    #[arg(long, value_name = "name|index")]
+    pub sheet: Option<String>,
+
+    /// Worksheet for the old input (overrides --sheet).
+    #[arg(long = "old-sheet", value_name = "name|index")]
+    pub old_sheet: Option<String>,
+
+    /// Worksheet for the new input (overrides --sheet).
+    #[arg(long = "new-sheet", value_name = "name|index")]
+    pub new_sheet: Option<String>,
 
     #[arg(long, value_name = "column")]
     pub key: Option<String>,
@@ -213,6 +226,16 @@ pub struct WitnessCountArgs {
 }
 
 impl Args {
+    /// Worksheet selector for the old input: `--old-sheet`, else `--sheet`.
+    pub fn old_sheet_selector(&self) -> Option<&str> {
+        self.old_sheet.as_deref().or(self.sheet.as_deref())
+    }
+
+    /// Worksheet selector for the new input: `--new-sheet`, else `--sheet`.
+    pub fn new_sheet_selector(&self) -> Option<&str> {
+        self.new_sheet.as_deref().or(self.sheet.as_deref())
+    }
+
     /// Parse CLI arguments using clap and return clap's rich error on failure.
     pub fn parse() -> Result<Self, clap::Error> {
         Self::parse_from(std::env::args_os())

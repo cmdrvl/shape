@@ -258,6 +258,9 @@ fn args_with_delimiter(
     Args {
         old: Some(old),
         new: Some(new),
+        sheet: None,
+        old_sheet: None,
+        new_sheet: None,
         key: key.map(ToOwned::to_owned),
         min_coverage: None,
         delimiter: delimiter.map(ToOwned::to_owned),

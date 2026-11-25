@@ -97,6 +97,9 @@ mod tests {
         Args {
             old: Some(old),
             new: Some(new),
+            sheet: None,
+            old_sheet: None,
+            new_sheet: None,
             key: Some("id".to_owned()),
             min_coverage: None,
             delimiter: None,
@@ -185,6 +188,9 @@ mod tests {
         let args = Args {
             old: None,
             new: None,
+            sheet: None,
+            old_sheet: None,
+            new_sheet: None,
             key: None,
             min_coverage: None,
             delimiter: None,

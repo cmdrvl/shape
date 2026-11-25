@@ -31,6 +31,9 @@
   ],
 
   "options": [
+    { "name": "sheet", "flag": "--sheet", "type": "string", "description": "Worksheet (name or 0-based index) for both inputs when they are .xlsx/.xls workbooks; required for a workbook with more than one sheet" },
+    { "name": "old_sheet", "flag": "--old-sheet", "type": "string", "description": "Worksheet for the old input (overrides --sheet)" },
+    { "name": "new_sheet", "flag": "--new-sheet", "type": "string", "description": "Worksheet for the new input (overrides --sheet)" },
     { "name": "key", "flag": "--key", "type": "string", "description": "Key column for alignment check" },
     { "name": "min_coverage", "flag": "--min-coverage", "type": "number", "default": "> 0", "description": "Inclusive minimum key-overlap ratio for non-empty inputs; accepts 0.0 through 1.0, while zero overlap remains incompatible" },
     { "name": "delimiter", "flag": "--delimiter", "type": "string", "description": "Force CSV delimiter for both files" },
@@ -188,6 +191,11 @@
       "action": "retry_with_flag",
       "flag_source": "detail.limit_flag",
       "value_source": "detail.actual"
+    },
+    {
+      "code": "E_INPUT_FORMAT",
+      "message": "Input refused by the shared tabular reader (JSONL, Parquet, XLSX)",
+      "action": "fix_input"
     }
   ],
 
@@ -199,7 +207,7 @@
     { "name": "SOURCE_DATE_EPOCH", "description": "Unix seconds used instead of the wall clock for the witness record timestamp (reproducible builds convention)." }
   ],
 
-  "formats": ["csv"],
+  "formats": ["csv", "tsv", "jsonl", "parquet", "xlsx"],
 
   "side_effects": {
     "reads_files": true,

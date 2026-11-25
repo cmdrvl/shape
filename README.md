@@ -360,6 +360,15 @@ shape inputs/old.csv inputs/new.csv --key loan_id --json --no-witness
 
 ---
 
+## Input formats
+
+shape reads CSV and TSV with its own dialect detection (below), and JSONL, Parquet and XLSX/XLS through the shared [`cmdrvl-tabular`](https://github.com/cmdrvl/tabular) reader, chosen by extension (`.jsonl`/`.ndjson`, `.parquet`, `.xlsx`/`.xlsm`/`.xls`). Any pairing works, including cross-format (`old.xlsx` vs `new.parquet`). A non-CSV input is rendered to comma-separated CSV in memory and goes through the unchanged four checks, so the same data in any container gives the same verdict and checks (golden tests in `tests/formats.rs`: all 25 pairings, COMPATIBLE and INCOMPATIBLE).
+
+- `--sheet <name|index>` picks the worksheet of a workbook (0-based index); `--old-sheet` / `--new-sheet` override it per side. A workbook with more than one sheet and no selector is refused (`E_INPUT_FORMAT`, `tabular_code: E_AMBIGUOUS_SHEET`, sheet names in `detail.context.sheets`).
+- A file tabular cannot read (unsupported Parquet value type, extension that disagrees with the content, nested JSON value, zip bomb) is refused with `E_INPUT_FORMAT` and tabular's own code. Refusal details carry coordinates, sheet names and type names, never cell values. A missing file is the ordinary `E_IO`.
+- `--delimiter` and `sep=` directives apply to CSV/TSV only. The dialect receipt for a non-CSV input shows a comma (the rendering).
+- `--capsule-dir` stores the CSV rendering shape saw (as a minimal repro, like any capsule), so a capsule replays without `--sheet`. `--lock` and the witness hash the original file bytes; `--sheet` values are recorded in witness params when given.
+
 ## Delimiter
 
 ### Auto-Detection (default)
@@ -503,6 +512,7 @@ Every refusal includes the error code and a concrete next step.
 | `E_HEADERS` | Missing header or duplicate headers | Fix headers or re-export |
 | `E_DIALECT` | Delimiter ambiguous or undetectable | Use `--delimiter <delim>` |
 | `E_AMBIGUOUS_PROFILE` | Both `--profile` and `--profile-id` provided | Provide exactly one profile selector |
+| `E_INPUT_FORMAT` | A JSONL / Parquet / XLSX input was refused by the shared tabular reader (`detail.tabular_code` says why: ambiguous or unknown sheet, unsupported value, wrong extension) | Pick the worksheet with `--sheet`, or fix/re-export the input |
 
 <details>
 <summary><strong>Reserved refusal codes</strong> (defined for schema stability, not emitted in v0)</summary>

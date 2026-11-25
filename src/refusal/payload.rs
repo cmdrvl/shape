@@ -82,6 +82,22 @@ impl RefusalPayload {
             .with_detail(json!({ "file": file.into(), "issue": issue.into() }))
     }
 
+    /// A JSONL / Parquet / XLSX input refused by the shared tabular reader. `tabular_code` is
+    /// its typed `E_*` code; `context` holds only coordinates, sheet names and type names.
+    pub fn input_format(
+        file: impl Into<String>,
+        tabular_code: impl Into<String>,
+        detail: impl Into<String>,
+        context: Value,
+    ) -> Self {
+        Self::from_code(RefusalCode::EInputFormat).with_detail(json!({
+            "file": file.into(),
+            "tabular_code": tabular_code.into(),
+            "detail": detail.into(),
+            "context": context,
+        }))
+    }
+
     pub fn csv_parse(file: impl Into<String>, line: u64, error: impl Into<String>) -> Self {
         Self::from_code(RefusalCode::ECsvParse)
             .with_detail(json!({ "file": file.into(), "line": line, "error": error.into() }))

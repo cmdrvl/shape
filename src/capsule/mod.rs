@@ -100,7 +100,7 @@ pub fn write_run_capsule(
             capsule_dir,
             "old_input",
             OLD_ARTIFACT_PATH,
-            args.old.as_deref(),
+            (args.old.as_deref(), args.old_sheet_selector()),
             outcome,
             refusal_code,
             repro_limits,
@@ -109,7 +109,7 @@ pub fn write_run_capsule(
             capsule_dir,
             "new_input",
             NEW_ARTIFACT_PATH,
-            args.new.as_deref(),
+            (args.new.as_deref(), args.new_sheet_selector()),
             outcome,
             refusal_code,
             repro_limits,
@@ -181,7 +181,7 @@ fn write_input_artifact(
     capsule_dir: &Path,
     name: &'static str,
     artifact_relative_path: &'static str,
-    source_path: Option<&Path>,
+    (source_path, sheet): (Option<&Path>, Option<&str>),
     outcome: Outcome,
     refusal_code: Option<&str>,
     repro_limits: ReproLimits,
@@ -192,7 +192,12 @@ fn write_input_artifact(
     }
 
     let source_display = source_path.map(path_to_string);
-    let result = source_path.map(fs::read);
+    // The capsule holds what shape's CSV pipeline saw: the file itself for CSV-like inputs, the
+    // tabular CSV rendering for JSONL / Parquet / XLSX (so replay needs no --sheet).
+    let result = source_path.map(|path| {
+        crate::tabular_input::effective_csv_bytes(path, sheet)
+            .map_err(|refusal| std::io::Error::other(refusal.message))
+    });
 
     let (bytes, blake3, source_error) = match result {
         Some(Ok(content)) => {
@@ -430,6 +435,9 @@ mod tests {
         Args {
             old: Some(old),
             new: Some(new),
+            sheet: None,
+            old_sheet: None,
+            new_sheet: None,
             key: Some("loan_id".to_owned()),
             min_coverage: None,
             delimiter: Some("comma".to_owned()),

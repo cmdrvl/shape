@@ -22,10 +22,12 @@ pub enum RefusalCode {
     EInputDrift,
     #[serde(rename = "E_TOO_LARGE")]
     ETooLarge,
+    #[serde(rename = "E_INPUT_FORMAT")]
+    EInputFormat,
 }
 
 impl RefusalCode {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::EIo,
         Self::EEncoding,
         Self::ECsvParse,
@@ -36,6 +38,7 @@ impl RefusalCode {
         Self::EInputNotLocked,
         Self::EInputDrift,
         Self::ETooLarge,
+        Self::EInputFormat,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -50,6 +53,7 @@ impl RefusalCode {
             Self::EInputNotLocked => "E_INPUT_NOT_LOCKED",
             Self::EInputDrift => "E_INPUT_DRIFT",
             Self::ETooLarge => "E_TOO_LARGE",
+            Self::EInputFormat => "E_INPUT_FORMAT",
         }
     }
 
@@ -65,11 +69,14 @@ impl RefusalCode {
             Self::EInputNotLocked => "Input file not present in any provided lockfile",
             Self::EInputDrift => "Input file hash doesn't match the referenced lock member",
             Self::ETooLarge => "Input exceeds --max-rows or --max-bytes",
+            Self::EInputFormat => {
+                "Input refused by the shared tabular reader (JSONL, Parquet, XLSX)"
+            }
         }
     }
 
     pub fn supports_next_command(self) -> bool {
-        matches!(self, Self::EDialect | Self::ETooLarge)
+        matches!(self, Self::EDialect | Self::ETooLarge | Self::EInputFormat)
     }
 }
 
@@ -83,7 +90,7 @@ mod tests {
 
         assert_eq!(
             encoded,
-            "[\"E_IO\",\"E_ENCODING\",\"E_CSV_PARSE\",\"E_EMPTY\",\"E_HEADERS\",\"E_DIALECT\",\"E_AMBIGUOUS_PROFILE\",\"E_INPUT_NOT_LOCKED\",\"E_INPUT_DRIFT\",\"E_TOO_LARGE\"]"
+            "[\"E_IO\",\"E_ENCODING\",\"E_CSV_PARSE\",\"E_EMPTY\",\"E_HEADERS\",\"E_DIALECT\",\"E_AMBIGUOUS_PROFILE\",\"E_INPUT_NOT_LOCKED\",\"E_INPUT_DRIFT\",\"E_TOO_LARGE\",\"E_INPUT_FORMAT\"]"
         );
     }
 
@@ -110,5 +117,6 @@ mod tests {
         assert!(!RefusalCode::EInputNotLocked.supports_next_command());
         assert!(!RefusalCode::EInputDrift.supports_next_command());
         assert!(RefusalCode::ETooLarge.supports_next_command());
+        assert!(RefusalCode::EInputFormat.supports_next_command());
     }
 }
