@@ -256,6 +256,7 @@ shape witness <query|last|count> [OPTIONS]
 | `--key <column>` | string | *(none)* | Key column to check for alignment viability (uniqueness, coverage). |
 | `--delimiter <delim>` | string | *(auto-detect)* | Force CSV delimiter for both files. See [Delimiter](#delimiter). |
 | `--json` | flag | `false` | Emit a single JSON object on stdout instead of human-readable output. |
+| `--lock <lockfile>` | path | *(none)* | Verify both inputs against `lock.v0` lockfile members (exact path match, else unique basename; `sha256:`/`blake3:` `bytes_hash`). Not listed → `E_INPUT_NOT_LOCKED`; hash differs → `E_INPUT_DRIFT`. Repeatable. |
 | `--no-witness` | flag | `false` | Suppress ambient witness ledger recording for this compare run. |
 | `--capsule-dir <path>` | path | *(none)* | Write deterministic repro capsule artifacts (`manifest.json`, copied inputs, rendered output, and `profile.yaml` when a profile is active) to this directory. |
 | `--profile <path>` | path | *(none)* | Scope checks to a profile’s `include_columns`. If the profile carries `column_registry`, dataset headers are canonicalized in-memory before overlap and key matching. |
@@ -268,7 +269,6 @@ shape witness <query|last|count> [OPTIONS]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--lock <lockfile>` | path | *(none)* | Verify both inputs against `lock.v0` lockfile members (exact path match, else unique basename; `sha256:`/`blake3:` `bytes_hash`). Not listed → `E_INPUT_NOT_LOCKED`; hash differs → `E_INPUT_DRIFT`. Repeatable. |
 | `--max-rows <n>` | integer | *(unlimited)* | Row-limit refusal. |
 | `--max-bytes <n>` | integer | *(unlimited)* | Byte-limit refusal. |
 
