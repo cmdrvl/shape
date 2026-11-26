@@ -70,7 +70,7 @@ pub fn execute(action: &WitnessAction) -> WitnessResponse {
         Ok(records) => records,
         Err(error) => {
             return WitnessResponse::internal_error(format!(
-                "shape: witness: failed to read ledger: {error}"
+                "shape: witness: failed to read ledger {error}"
             ));
         }
     };
@@ -290,13 +290,15 @@ fn load_records_from_path(path: &Path) -> io::Result<Vec<WitnessRecord>> {
     let file = match File::open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(error),
+        Err(error) => return Err(with_ledger_path(path, error)),
     };
     let reader = io::BufReader::new(file);
 
     let mut records = Vec::new();
     for line in reader.lines() {
-        let line = line?;
+        // A line that is not valid UTF-8 is a read error: shape refuses it (exit 2) rather than
+        // skipping it, and the error names the ledger like every other read failure.
+        let line = line.map_err(|error| with_ledger_path(path, error))?;
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -307,6 +309,12 @@ fn load_records_from_path(path: &Path) -> io::Result<Vec<WitnessRecord>> {
     }
 
     Ok(records)
+}
+
+/// Prefix an I/O error with the ledger path so the refusal reads
+/// `failed to read ledger <path>: <os error>` (same shape as verify, assess, pack and rvl).
+fn with_ledger_path(path: &Path, error: io::Error) -> io::Error {
+    io::Error::new(error.kind(), format!("{}: {error}", path.display()))
 }
 
 fn resolve_ledger_path() -> io::Result<PathBuf> {

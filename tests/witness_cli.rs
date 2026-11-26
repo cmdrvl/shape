@@ -444,3 +444,62 @@ fn describe_operator_contract_includes_witness_usage_and_no_witness_option() {
         "count usage must not advertise --limit: {count_usage}"
     );
 }
+
+/// bd-3565: a ledger that cannot be read refuses with `failed to read ledger <path>: <os error>`
+/// (path as given), exit 2, empty stdout, for query, count and last.
+fn assert_read_refusal_names_ledger(ledger: &Path, os_error_hint: &str) {
+    for action in ["query", "count", "last"] {
+        let result = run_shape_with_ledger(["witness", action, "--json"], ledger);
+        assert_eq!(result.status, 2, "witness {action}: {}", result.stderr);
+        assert!(result.stdout.trim().is_empty(), "witness {action} stdout");
+        let expected = format!(
+            "shape: witness: failed to read ledger {}: ",
+            ledger.display()
+        );
+        assert!(
+            result.stderr.contains(&expected),
+            "witness {action} stderr must be `{expected}<os error>`, got: {}",
+            result.stderr
+        );
+        assert!(
+            result.stderr.contains(os_error_hint),
+            "witness {action} stderr must keep the OS error ({os_error_hint}): {}",
+            result.stderr
+        );
+        assert_eq!(result.stderr.trim().lines().count(), 1, "one stderr line");
+    }
+}
+
+#[test]
+fn witness_directory_ledger_refusal_names_the_path() {
+    let dir = unique_temp_dir("named-dir");
+    assert_read_refusal_names_ledger(&dir, "Is a directory");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn witness_mode_000_ledger_refusal_names_the_path() {
+    use std::os::unix::fs::PermissionsExt;
+    let ledger = unique_ledger_path("named-000");
+    fs::write(&ledger, "{}\n").expect("write ledger");
+    fs::set_permissions(&ledger, fs::Permissions::from_mode(0o000)).expect("chmod 000");
+    if fs::File::open(&ledger).is_ok() {
+        // A process that can read mode-000 files (root) cannot exercise this case.
+        let _ = fs::remove_file(&ledger);
+        return;
+    }
+    assert_read_refusal_names_ledger(&ledger, "Permission denied");
+    fs::set_permissions(&ledger, fs::Permissions::from_mode(0o600)).expect("restore mode");
+    let _ = fs::remove_file(&ledger);
+}
+
+#[test]
+fn witness_invalid_utf8_line_is_refused_and_names_the_path() {
+    let ledger = unique_ledger_path("named-utf8");
+    let mut bytes = sample_ledger_contents().into_bytes();
+    bytes.extend_from_slice(&[0xff, 0xfe, b'\n']);
+    fs::write(&ledger, bytes).expect("write ledger");
+    assert_read_refusal_names_ledger(&ledger, "valid UTF-8");
+    let _ = fs::remove_file(&ledger);
+}

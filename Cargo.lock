@@ -460,6 +460,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "evidence-protocol"
+version = "0.5.1"
+source = "git+https://github.com/cmdrvl/evidence-protocol?tag=v0.5.1#93c4fa4af832d2750b906d8296d235e1992ceff8"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fast-float2"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -983,10 +992,13 @@ checksum = "199905e6153d6405f9728fe44daace35f8f837bbf830bb6e85fbd5828709a886"
 [[package]]
 name = "spine-rules"
 version = "0.3.1"
-source = "git+https://github.com/cmdrvl/spine-rules#c9da5645f0f03743b0ce5aef673c5e144d883a02"
+source = "git+https://github.com/cmdrvl/spine-rules#2b71975a6ec185af02548eaa31a5f9e8c6b6bb54"
 dependencies = [
+ "blake3",
+ "evidence-protocol",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
 ]
 
