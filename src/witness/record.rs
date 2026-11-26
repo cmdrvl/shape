@@ -1,6 +1,7 @@
+use cmdrvl_core::hash::{Algorithm, hash_bytes};
 use serde::{Deserialize, Serialize};
 
-use super::hash::{hash_bytes, hash_self};
+use super::hash::hash_self;
 use crate::checks::suite::Outcome;
 use crate::cli::args::Args;
 use crate::cli::exit;
@@ -31,6 +32,10 @@ pub struct WitnessInput {
 ///
 /// This is the single serialization path for witness records so ID computation
 /// and ledger appends stay consistent.
+///
+/// Key order is struct declaration order, not sorted: `cmdrvl-tabular` enables serde_json's
+/// `preserve_order`. Record ids hash these exact bytes, so this is neither
+/// `cmdrvl_core::sorted_compact` nor `cmdrvl_core::jcs`.
 pub fn canonical_json(record: &WitnessRecord) -> String {
     let value = serde_json::to_value(record).expect("WitnessRecord is serializable");
     serde_json::to_string(&value).expect("serde_json::Value is serializable")
@@ -52,12 +57,12 @@ impl WitnessRecord {
         let inputs = vec![
             WitnessInput {
                 path: old_path.to_owned(),
-                hash: format!("blake3:{}", hash_bytes(old_bytes)),
+                hash: hash_bytes(Algorithm::Blake3, old_bytes),
                 bytes: old_bytes.len() as u64,
             },
             WitnessInput {
                 path: new_path.to_owned(),
-                hash: format!("blake3:{}", hash_bytes(new_bytes)),
+                hash: hash_bytes(Algorithm::Blake3, new_bytes),
                 bytes: new_bytes.len() as u64,
             },
         ];
@@ -114,7 +119,7 @@ impl WitnessRecord {
             params,
             outcome: outcome.to_owned(),
             exit_code: exit::exit_code(result.outcome),
-            output_hash: format!("blake3:{}", hash_bytes(result.output.as_bytes())),
+            output_hash: hash_bytes(Algorithm::Blake3, result.output.as_bytes()),
             ts: current_utc_iso8601(),
         }
     }
@@ -124,7 +129,7 @@ impl WitnessRecord {
     pub fn compute_id(&mut self) {
         self.id.clear();
         let canonical = canonical_json(self);
-        self.id = format!("blake3:{}", hash_bytes(canonical.as_bytes()));
+        self.id = hash_bytes(Algorithm::Blake3, canonical.as_bytes());
     }
 }
 

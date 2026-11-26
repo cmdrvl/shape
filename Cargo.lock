@@ -285,6 +285,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
+name = "cmdrvl-core"
+version = "0.1.0"
+source = "git+https://github.com/cmdrvl/core?rev=a3dad0b1af2eeb8036625b25f3d9ff94c3a1ef0e#a3dad0b1af2eeb8036625b25f3d9ff94c3a1ef0e"
+dependencies = [
+ "blake3",
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "cmdrvl-tabular"
 version = "0.0.1"
 source = "git+https://github.com/cmdrvl/tabular?rev=f461f34#f461f34d221cbce098857706afe51adbee0872f4"
@@ -427,6 +439,7 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
+ "subtle",
 ]
 
 [[package]]
@@ -588,6 +601,15 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "hmac"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
+dependencies = [
+ "digest",
+]
 
 [[package]]
 name = "iana-time-zone"
@@ -951,6 +973,7 @@ version = "0.10.1"
 dependencies = [
  "blake3",
  "clap",
+ "cmdrvl-core",
  "cmdrvl-tabular",
  "csv",
  "serde",
@@ -1007,6 +1030,12 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "subtle"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"

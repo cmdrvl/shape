@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use cmdrvl_core::hash::{Algorithm, hash_bytes};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -11,7 +12,6 @@ use crate::checks::suite::Outcome;
 use crate::cli::args::Args;
 use crate::profile::{ResolvedProfile, render_profile_yaml};
 use crate::refusal::payload::RefusalPayload;
-use crate::witness::hash::hash_bytes;
 
 const MANIFEST_FILENAME: &str = "manifest.json";
 const OLD_ARTIFACT_PATH: &str = "inputs/old.csv";
@@ -205,7 +205,7 @@ fn write_input_artifact(
             fs::write(&destination, &minimal.bytes)?;
             (
                 Some(minimal.bytes.len() as u64),
-                Some(format!("blake3:{}", hash_bytes(&minimal.bytes))),
+                Some(hash_bytes(Algorithm::Blake3, &minimal.bytes)),
                 None,
             )
         }
@@ -244,7 +244,7 @@ fn write_output_artifact(
         path: OUTPUT_ARTIFACT_PATH,
         source_path: None,
         bytes: Some(output.len() as u64),
-        blake3: Some(format!("blake3:{}", hash_bytes(output.as_bytes()))),
+        blake3: Some(hash_bytes(Algorithm::Blake3, output.as_bytes())),
         source_error: None,
     })
 }
@@ -269,7 +269,7 @@ fn write_profile_artifact(
         path: PROFILE_ARTIFACT_PATH,
         source_path: Some(path_to_string(profile.source_path.as_path())),
         bytes: Some(bytes.len() as u64),
-        blake3: Some(format!("blake3:{}", hash_bytes(&bytes))),
+        blake3: Some(hash_bytes(Algorithm::Blake3, &bytes)),
         source_error: None,
     })
 }

@@ -8,8 +8,8 @@
 
 use std::path::{Path, PathBuf};
 
+use cmdrvl_core::hash::{Algorithm, hash_bytes};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 
 use crate::refusal::payload::RefusalPayload;
 
@@ -53,12 +53,12 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, RefusalPayload> {
 
 /// Hash `bytes` with the algorithm named by the prefix of `expected`
 /// (`sha256:` or `blake3:`, as `lock`/`hashbytes` emit). `None` if unsupported.
+///
+/// Only the hashing comes from cmdrvl-core. Member matching stays here on purpose:
+/// `cmdrvl_core::lockfile` differs (it strips a leading `./`, so it verifies inputs that this
+/// module refuses as `E_INPUT_NOT_LOCKED`).
 fn hash_like(bytes: &[u8], expected: &str) -> Option<String> {
-    match expected.split_once(':')?.0 {
-        "sha256" => Some(format!("sha256:{:x}", Sha256::digest(bytes))),
-        "blake3" => Some(format!("blake3:{}", blake3::hash(bytes).to_hex())),
-        _ => None,
-    }
+    Algorithm::of(expected).map(|algorithm| hash_bytes(algorithm, bytes))
 }
 
 fn check_matches(

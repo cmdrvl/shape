@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use cmdrvl_core::hash::{Algorithm, hash_bytes};
 use serde::Deserialize;
 
 use crate::normalize::headers::{ascii_trim, canonicalize_header_identifier};
-use crate::witness::hash::hash_bytes;
 
 const COLUMN_NAME_CANONICAL_TYPE: &str = "column_name";
 
@@ -386,7 +386,7 @@ fn load_column_registry_aliases(registry_dir: &Path) -> Result<LoadedColumnRegis
 
     Ok(LoadedColumnRegistry {
         aliases,
-        content_hash: format!("blake3:{}", hash_bytes(&framed)),
+        content_hash: hash_bytes(Algorithm::Blake3, &framed),
     })
 }
 
@@ -561,7 +561,7 @@ mod tests {
             &std::fs::read(registry_dir.join("z-last.json")).unwrap(),
         );
 
-        let expected_hash = format!("blake3:{}", hash_bytes(&expected));
+        let expected_hash = format!("blake3:{}", crate::witness::hash::hash_bytes(&expected));
         assert_eq!(
             profile.column_registry_hash.as_deref(),
             Some(expected_hash.as_str())

@@ -18,13 +18,16 @@ path = "src/main.rs"
 blake3 = "1"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
+# Pinned by exact rev. default-features = false: core's default turns on serde_json/float_roundtrip,
+# which would change how this crate parses floats.
+cmdrvl-core = { git = "https://github.com/cmdrvl/core", rev = "a3dad0b1af2eeb8036625b25f3d9ff94c3a1ef0e", default-features = false }
 # JSONL / Parquet / XLSX inputs (CSV and TSV keep shape's own reader and dialect detection). Pinned by commit.
 cmdrvl-tabular = { git = "https://github.com/cmdrvl/tabular", rev = "f461f34" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
 
 [dev-dependencies]
+sha2 = "0.10"
 spine-rules = { git = "https://github.com/cmdrvl/spine-rules" }
 
 [profile.release]
