@@ -223,6 +223,26 @@ mod tests {
         }
     }
 
+    /// Ledger lines written by the released shape 0.10.1 binary, one with a column registry
+    /// hash. Do not regenerate them from the code under test.
+    const RELEASED_LEDGER: &str =
+        include_str!("../../tests/fixtures/released-0.10.1-witness.jsonl");
+
+    /// Fails if the ledger serializer re-sorts keys (for example by moving to
+    /// `cmdrvl_core::sorted_compact` or `jcs`) or if the id hash changes.
+    #[test]
+    fn released_ledger_lines_and_ids_are_reproduced() {
+        assert_eq!(RELEASED_LEDGER.lines().count(), 2);
+        for line in RELEASED_LEDGER.lines() {
+            let mut record: WitnessRecord = serde_json::from_str(line).expect("released line");
+            assert_eq!(super::canonical_json(&record), line);
+
+            let released_id = record.id.clone();
+            record.compute_id();
+            assert_eq!(record.id, released_id);
+        }
+    }
+
     #[test]
     fn from_run_populates_expected_fields() {
         let args = make_args();
