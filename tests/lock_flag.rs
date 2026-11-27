@@ -26,13 +26,17 @@ fn sha256_of(path: &Path) -> String {
 }
 
 fn write_lock(dir: &Path, members: &[(&Path, &str)]) -> PathBuf {
+    write_lock_at(dir, "inputs.lock.json", members)
+}
+
+fn write_lock_at(dir: &Path, name: &str, members: &[(&Path, &str)]) -> PathBuf {
     let members = members
         .iter()
         .map(|(path, hash)| {
             serde_json::json!({ "path": path.to_string_lossy(), "bytes_hash": hash })
         })
         .collect::<Vec<_>>();
-    let path = dir.join("inputs.lock.json");
+    let path = dir.join(name);
     fs::write(
         &path,
         serde_json::json!({
@@ -47,13 +51,25 @@ fn write_lock(dir: &Path, members: &[(&Path, &str)]) -> PathBuf {
 }
 
 fn run_with_lock(old: &Path, new: &Path, lock: &Path) -> helpers::ShapeInvocation {
-    run_shape([
-        old.to_string_lossy().as_ref(),
-        new.to_string_lossy().as_ref(),
-        "--lock",
-        lock.to_string_lossy().as_ref(),
-        "--json",
-    ])
+    run_with_locks_and_args(old, new, &[lock], &["--json"])
+}
+
+fn run_with_locks_and_args(
+    old: &Path,
+    new: &Path,
+    locks: &[&Path],
+    extra_args: &[&str],
+) -> helpers::ShapeInvocation {
+    let mut args = vec![
+        old.to_string_lossy().into_owned(),
+        new.to_string_lossy().into_owned(),
+    ];
+    for lock in locks {
+        args.push("--lock".to_owned());
+        args.push(lock.to_string_lossy().into_owned());
+    }
+    args.extend(extra_args.iter().map(|arg| (*arg).to_owned()));
+    run_shape(args)
 }
 
 fn refusal_code(result: &helpers::ShapeInvocation) -> String {
@@ -268,7 +284,16 @@ fn lock_refuses_when_locked_hash_does_not_match_input_bytes() {
     let old = fixture_path("basic_old.csv");
     let new = fixture_path("basic_new.csv");
     // Planted negative: `new` is listed with a stale hash.
-    let lock = write_lock(&dir, &[(&old, &sha256_of(&old)), (&new, "sha256:deadbeef")]);
+    let lock = write_lock(
+        &dir,
+        &[
+            (&old, &sha256_of(&old)),
+            (
+                &new,
+                "sha256:deadbeef00000000000000000000000000000000000000000000000000000000",
+            ),
+        ],
+    );
 
     let result = run_with_lock(&old, &new, &lock);
 
@@ -276,4 +301,76 @@ fn lock_refuses_when_locked_hash_does_not_match_input_bytes() {
     assert_eq!(refusal_code(&result), "E_INPUT_DRIFT");
     let value: Value = serde_json::from_str(&result.stdout).expect("result should be JSON");
     assert!(value["input_verification"].is_null());
+}
+
+#[test]
+fn lock_refuses_either_of_two_locks_with_different_digests_as_drift() {
+    let dir = scratch_dir();
+    let old = fixture_path("basic_old.csv");
+    let new = fixture_path("basic_new.csv");
+    let old_hash = sha256_of(&old);
+    let new_hash = sha256_of(&new);
+    let stale = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+    assert_ne!(old_hash, stale);
+    let first = write_lock_at(
+        &dir,
+        "first.lock.json",
+        &[(&old, &old_hash), (&new, &new_hash)],
+    );
+    let second = write_lock_at(
+        &dir,
+        "second.lock.json",
+        &[(&old, stale), (&new, &new_hash)],
+    );
+
+    let result = run_with_locks_and_args(&old, &new, &[&first, &second], &["--json"]);
+
+    assert_eq!(
+        result.status, 2,
+        "either-lock drift must refuse: {}",
+        result.stdout
+    );
+    assert_eq!(refusal_code(&result), "E_INPUT_DRIFT");
+    let value: Value = serde_json::from_str(&result.stdout).expect("result should be JSON");
+    assert_eq!(value["refusal"]["detail"]["expected_hash"], stale);
+}
+
+#[test]
+fn parent_folder_lock_passes_right_and_refuses_exchanged_periods() {
+    let dir = scratch_dir();
+    let dec_dir = dir.join("dec");
+    let nov_dir = dir.join("nov");
+    fs::create_dir_all(&dec_dir).expect("December directory should be creatable");
+    fs::create_dir_all(&nov_dir).expect("November directory should be creatable");
+    let dec = dec_dir.join("loans.csv");
+    let nov = nov_dir.join("loans.csv");
+    let dec_bytes = "loan_id,balance\n1,10\n";
+    let nov_bytes = "loan_id,balance\n1,20\n";
+    fs::write(&dec, dec_bytes).expect("December input should be writable");
+    fs::write(&nov, nov_bytes).expect("November input should be writable");
+    let lock = write_lock_at(
+        &dir,
+        "parent.lock.json",
+        &[(&dec, &sha256_of(&dec)), (&nov, &sha256_of(&nov))],
+    );
+
+    let right = run_with_locks_and_args(&dec, &nov, &[&lock], &["--json", "--key", "loan_id"]);
+    assert!(
+        right.status == 0 || right.status == 1,
+        "right parent-folder layout should compare: {}",
+        right.stdout
+    );
+    let right_value: Value =
+        serde_json::from_str(&right.stdout).expect("right result should be JSON");
+    assert_ne!(right_value["outcome"], "REFUSAL", "{}", right.stdout);
+
+    fs::write(&dec, nov_bytes).expect("swapped December input should be writable");
+    fs::write(&nov, dec_bytes).expect("swapped November input should be writable");
+    let swapped = run_with_locks_and_args(&dec, &nov, &[&lock], &["--json", "--key", "loan_id"]);
+    assert_eq!(
+        swapped.status, 2,
+        "swapped periods must refuse: {}",
+        swapped.stdout
+    );
+    assert_eq!(refusal_code(&swapped), "E_INPUT_DRIFT");
 }

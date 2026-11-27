@@ -296,6 +296,17 @@ shape doctor triage --json
 | `--describe` | flag | `false` | Print the compiled-in `operator.json` to stdout and exit `0` without positional args. |
 | `--robot-triage` | flag | `false` | Deprecated alias of `shape doctor triage --json`: emits the `cmdrvl.doctor.v1` triage report without positional args. |
 
+#### Lock matching (R1)
+
+Shape uses the shared R1 lock-matching rule: leading `./` is ignored, an exact normalized path
+wins over a basename lookup, basename candidates must identify one path, and every selected lock
+member must have a usable digest that matches the input. If two per-period locks both list
+`loans.csv` with different digests, passing both locks refuses even when one period's file is
+correct. The supported two-period layout is one lock over the parent folder with members such as
+`dec/loans.csv` and `nov/loans.csv`; bind those parent-relative paths so the right files pass and
+exchanged period contents refuse with `E_INPUT_DRIFT`. The lock receipt still names the first
+matching lock and does not add per-file input hashes.
+
 <details>
 <summary><strong>Reserved v0 flags</strong> (parsed for schema stability, not yet enforced at runtime)</summary>
 
