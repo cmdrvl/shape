@@ -35,7 +35,12 @@ fn write_lock(dir: &Path, members: &[(&Path, &str)]) -> PathBuf {
     let path = dir.join("inputs.lock.json");
     fs::write(
         &path,
-        serde_json::json!({ "version": "lock.v0", "members": members }).to_string(),
+        serde_json::json!({
+            "version": "lock.v0",
+            "lock_hash": "sha256:cafe",
+            "members": members
+        })
+        .to_string(),
     )
     .expect("lockfile should be writable");
     path
@@ -106,6 +111,31 @@ fn lock_passes_when_both_inputs_match_their_locked_hashes() {
     );
     let value: Value = serde_json::from_str(&result.stdout).expect("result should be JSON");
     assert_ne!(value["outcome"], "REFUSAL", "{}", result.stdout);
+    assert_eq!(value["input_verification"]["verified"], true);
+    assert_eq!(
+        value["input_verification"]["locks"][0]["path"],
+        lock.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        value["input_verification"]["locks"][0]["lock_hash"],
+        "sha256:cafe"
+    );
+    assert_eq!(
+        value["input_verification"]["files"]["old"]["path"],
+        old.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        value["input_verification"]["files"]["old"]["bytes_hash"],
+        sha256_of(&old)
+    );
+    assert_eq!(
+        value["input_verification"]["files"]["new"]["path"],
+        new.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        value["input_verification"]["files"]["new"]["bytes_hash"],
+        sha256_of(&new)
+    );
 }
 
 #[test]
@@ -120,6 +150,8 @@ fn lock_refuses_input_missing_from_lockfile() {
 
     assert_eq!(result.status, 2, "{}", result.stdout);
     assert_eq!(refusal_code(&result), "E_INPUT_NOT_LOCKED");
+    let value: Value = serde_json::from_str(&result.stdout).expect("result should be JSON");
+    assert!(value["input_verification"].is_null());
 }
 
 #[test]
@@ -134,4 +166,6 @@ fn lock_refuses_when_locked_hash_does_not_match_input_bytes() {
 
     assert_eq!(result.status, 2, "{}", result.stdout);
     assert_eq!(refusal_code(&result), "E_INPUT_DRIFT");
+    let value: Value = serde_json::from_str(&result.stdout).expect("result should be JSON");
+    assert!(value["input_verification"].is_null());
 }

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use serde_json::Value;
+
 use crate::capsule;
 use crate::checks::suite::{
     CheckSuite, Outcome, assemble_check_suite_with_min_coverage, build_reasons_for_output,
@@ -36,6 +38,7 @@ struct PipelineDomainResult {
     suite: CheckSuite,
     reasons: Vec<String>,
     outcome: Outcome,
+    input_verification: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -244,15 +247,28 @@ fn execute_pipeline(
         .map(|profile| profile.key_columns.clone())
         .unwrap_or_default();
 
-    if !args.lock.is_empty() {
-        for input in [old_path, new_path] {
-            crate::lock::verify_input(input, &args.lock).map_err(|refusal| PipelineRefusal {
+    let input_verification = if !args.lock.is_empty() {
+        let old_verification =
+            crate::lock::verify_input(old_path, &args.lock).map_err(|refusal| PipelineRefusal {
                 refusal,
                 dialect_old: None,
                 dialect_new: None,
             })?;
-        }
-    }
+        let new_verification =
+            crate::lock::verify_input(new_path, &args.lock).map_err(|refusal| PipelineRefusal {
+                refusal,
+                dialect_old: None,
+                dialect_new: None,
+            })?;
+        Some(build_input_verification(
+            &old_file,
+            &old_verification,
+            &new_file,
+            &new_verification,
+        ))
+    } else {
+        None
+    };
 
     let old_input = parse_input_file_with_sheet(
         old_path,
@@ -395,6 +411,36 @@ fn execute_pipeline(
         suite,
         reasons,
         outcome,
+        input_verification,
+    })
+}
+
+fn build_input_verification(
+    old_file: &str,
+    old: &crate::lock::VerifiedInput,
+    new_file: &str,
+    new: &crate::lock::VerifiedInput,
+) -> Value {
+    let mut locks = Vec::new();
+    for verified in [old, new] {
+        if !locks
+            .iter()
+            .any(|entry: &Value| entry["path"] == verified.lockfile)
+        {
+            locks.push(serde_json::json!({
+                "path": verified.lockfile,
+                "lock_hash": verified.lock_hash,
+            }));
+        }
+    }
+
+    serde_json::json!({
+        "verified": true,
+        "locks": locks,
+        "files": {
+            "old": { "path": old_file, "bytes_hash": old.bytes_hash },
+            "new": { "path": new_file, "bytes_hash": new.bytes_hash },
+        },
     })
 }
 
@@ -429,14 +475,14 @@ fn render_domain_output(
             outcome: domain.outcome,
             old_file,
             new_file,
-            dialect_old: Some(domain.old_input.dialect),
-            dialect_new: Some(domain.new_input.dialect),
+            dialect_old: json_dialect_for_input(&domain.old_input),
+            dialect_new: json_dialect_for_input(&domain.new_input),
             checks: Some(&domain.suite),
             reasons: Some(&domain.reasons),
             refusal: None,
             profile_id: resolved_profile.and_then(|p| p.profile_id.as_deref()),
             profile_sha256: resolved_profile.and_then(|p| p.profile_sha256.as_deref()),
-            input_verification: None,
+            input_verification: domain.input_verification.clone(),
             explicit: args.explicit,
         })?);
     }
@@ -481,8 +527,8 @@ fn render_refusal_output(
             outcome: Outcome::Refusal,
             old_file,
             new_file,
-            dialect_old: refusal.dialect_old,
-            dialect_new: refusal.dialect_new,
+            dialect_old: json_dialect_for_path(old_file, refusal.dialect_old),
+            dialect_new: json_dialect_for_path(new_file, refusal.dialect_new),
             checks: None,
             reasons: None,
             refusal: Some(&refusal.refusal),
@@ -502,6 +548,18 @@ fn render_refusal_output(
             dialect_new: refusal.dialect_new,
         },
     ))
+}
+
+fn json_dialect_for_input(input: &ParsedInput) -> Option<Dialect> {
+    json_dialect_for_path(input.path.to_string_lossy().as_ref(), Some(input.dialect))
+}
+
+fn json_dialect_for_path(path: &str, dialect: Option<Dialect>) -> Option<Dialect> {
+    if crate::tabular_input::is_tabular_path(Path::new(path)) {
+        None
+    } else {
+        dialect
+    }
 }
 
 fn header_index_map(headers: &[Vec<u8>]) -> HashMap<Vec<u8>, usize> {

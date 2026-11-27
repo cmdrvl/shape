@@ -16,6 +16,8 @@ use crate::refusal::payload::RefusalPayload;
 #[derive(Debug, Deserialize)]
 struct Lockfile {
     version: String,
+    #[serde(default)]
+    lock_hash: Option<String>,
     members: Vec<LockMember>,
 }
 
@@ -28,8 +30,17 @@ struct LockMember {
 #[derive(Debug, Clone)]
 struct Candidate {
     lockfile: PathBuf,
+    lock_hash: Option<String>,
     member_path: String,
     bytes_hash: String,
+}
+
+/// Evidence that one input matched a member in a lockfile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedInput {
+    pub lockfile: String,
+    pub lock_hash: Option<String>,
+    pub bytes_hash: String,
 }
 
 fn load_lockfile(path: &Path) -> Result<Lockfile, RefusalPayload> {
@@ -65,13 +76,19 @@ fn check_matches(
     file: &str,
     bytes: &[u8],
     matches: &[Candidate],
-) -> Option<Result<(), RefusalPayload>> {
+) -> Option<Result<VerifiedInput, RefusalPayload>> {
     if matches.is_empty() {
         return None;
     }
     for candidate in matches {
         match hash_like(bytes, &candidate.bytes_hash) {
-            Some(actual) if actual == candidate.bytes_hash => return Some(Ok(())),
+            Some(actual) if actual == candidate.bytes_hash => {
+                return Some(Ok(VerifiedInput {
+                    lockfile: candidate.lockfile.to_string_lossy().into_owned(),
+                    lock_hash: candidate.lock_hash.clone(),
+                    bytes_hash: candidate.bytes_hash.clone(),
+                }));
+            }
             Some(_) => {}
             None => {
                 return Some(Err(RefusalPayload::io(
@@ -94,7 +111,7 @@ fn check_matches(
 }
 
 /// Verify one input file against the provided lockfiles.
-pub fn verify_input(input: &Path, lockfiles: &[PathBuf]) -> Result<(), RefusalPayload> {
+pub fn verify_input(input: &Path, lockfiles: &[PathBuf]) -> Result<VerifiedInput, RefusalPayload> {
     let file = input.to_string_lossy().into_owned();
     let bytes = read_bytes(input)?;
     let exact_path = file.replace('\\', "/");
@@ -103,9 +120,11 @@ pub fn verify_input(input: &Path, lockfiles: &[PathBuf]) -> Result<(), RefusalPa
     let mut exact = Vec::new();
     let mut by_basename: Vec<Candidate> = Vec::new();
     for lockfile_path in lockfiles {
-        for member in load_lockfile(lockfile_path)?.members {
+        let lockfile = load_lockfile(lockfile_path)?;
+        for member in lockfile.members {
             let candidate = Candidate {
                 lockfile: lockfile_path.clone(),
+                lock_hash: lockfile.lock_hash.clone(),
                 member_path: member.path,
                 bytes_hash: member.bytes_hash,
             };

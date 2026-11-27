@@ -366,7 +366,7 @@ shape reads CSV and TSV with its own dialect detection (below), and JSONL, Parqu
 
 - `--sheet <name|index>` picks the worksheet of a workbook (0-based index); `--old-sheet` / `--new-sheet` override it per side. A workbook with more than one sheet and no selector is refused (`E_INPUT_FORMAT`, `tabular_code: E_AMBIGUOUS_SHEET`, sheet names in `detail.context.sheets`).
 - A file tabular cannot read (unsupported Parquet value type, extension that disagrees with the content, nested JSON value, zip bomb) is refused with `E_INPUT_FORMAT` and tabular's own code. Refusal details carry coordinates, sheet names and type names, never cell values. A missing file is the ordinary `E_IO`.
-- `--delimiter` and `sep=` directives apply to CSV/TSV only. The dialect receipt for a non-CSV input shows a comma (the rendering).
+- `--delimiter` and `sep=` directives apply to CSV/TSV only. In JSON output, the dialect receipt for a non-CSV input is `null` because the internal comma rendering is not the source format's dialect.
 - `--capsule-dir` stores the CSV rendering shape saw (as a minimal repro, like any capsule), so a capsule replays without `--sheet`. `--lock` and the witness hash the original file bytes; `--sheet` values are recorded in witness params when given.
 
 ## Delimiter
@@ -661,7 +661,7 @@ A single JSON object on stdout. If the process fails before domain evaluation (e
   "outcome": "COMPATIBLE",                 // "COMPATIBLE" | "INCOMPATIBLE" | "REFUSAL"
   "profile_id": null,                      // echoes --profile-id when provided
   "profile_sha256": null,                  // reserved in v0 (currently null)
-  "input_verification": null,              // reserved in v0 (currently null)
+  "input_verification": null,              // null without --lock; verified receipt when --lock is used
   "files": { "old": "nov.csv", "new": "dec.csv" },
   "checks": {
     "schema_overlap": {
@@ -705,7 +705,7 @@ A single JSON object on stdout. If the process fails before domain evaluation (e
 - `reasons` is `[]` for `COMPATIBLE`, non-empty for `INCOMPATIBLE`, and `null` for `REFUSAL`.
 - `refusal` is `null` unless outcome is `REFUSAL`.
 - `profile_id` echoes `--profile-id` when provided, otherwise `null`.
-- `profile_sha256` and `input_verification` are reserved v0 contract fields and remain `null` in current runtime behavior.
+- `profile_sha256` remains reserved and `null` in current runtime behavior. With `--lock`, `input_verification` reports the verified lockfile(s), lock hash, and each input's matched bytes hash; without `--lock`, it is `null`.
 - `key_viability` is `null` when neither `--key` nor the active profile provides a key.
 - `key_viability.unique_old` / `unique_new` are `null` if the complete key is unavailable in that file.
 - `key_viability.coverage` is `null` when key overlap is not computable.

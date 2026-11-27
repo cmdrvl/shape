@@ -29,13 +29,14 @@ fn report(old: &str, new: &str, extra: &[&str]) -> (Option<i32>, Value) {
     let mut args = vec![old, new, "--key", "loan_id", "--json"];
     args.extend_from_slice(extra);
     let out = shape(&args);
-    let value: Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|e| {
-        panic!(
-            "stdout is not JSON ({e}): {}\nstderr: {}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        )
-    });
+    let value = serde_json::from_slice::<Value>(&out.stdout);
+    assert!(
+        value.is_ok(),
+        "stdout is not JSON: {}\nstderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value = value.unwrap_or(Value::Null);
     (out.status.code(), value)
 }
 
@@ -167,8 +168,11 @@ fn missing_non_csv_file_is_the_ordinary_io_refusal() {
 fn csv_and_tsv_still_use_shapes_own_dialect_detection() {
     let (_, tsv) = report(&fx("old.tsv"), &fx("new.tsv"), &[]);
     assert_eq!(tsv["dialect"]["old"]["delimiter"], json!("\\t")); // shape shows a tab escaped
-    let (_, parquet) = report(&fx("old.parquet"), &fx("new.parquet"), &[]);
-    assert_eq!(parquet["dialect"]["old"]["delimiter"], json!(","));
+    for ext in ["jsonl", "parquet", "xlsx"] {
+        let (_, report) = report(&fx(&format!("old.{ext}")), &fx(&format!("new.{ext}")), &[]);
+        assert!(report["dialect"]["old"].is_null(), "{ext}: {report}");
+        assert!(report["dialect"]["new"].is_null(), "{ext}: {report}");
+    }
 }
 
 // ---- capsule and witness -----------------------------------------------------
