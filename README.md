@@ -661,7 +661,7 @@ A single JSON object on stdout. If the process fails before domain evaluation (e
   "outcome": "COMPATIBLE",                 // "COMPATIBLE" | "INCOMPATIBLE" | "REFUSAL"
   "profile_id": null,                      // echoes --profile-id when provided
   "profile_sha256": null,                  // reserved in v0 (currently null)
-  "input_verification": null,              // null without --lock; verified receipt when --lock is used
+  "input_verification": null,              // null without --lock; lock refs/self-hash only when --lock is used
   "files": { "old": "nov.csv", "new": "dec.csv" },
   "checks": {
     "schema_overlap": {
@@ -705,7 +705,7 @@ A single JSON object on stdout. If the process fails before domain evaluation (e
 - `reasons` is `[]` for `COMPATIBLE`, non-empty for `INCOMPATIBLE`, and `null` for `REFUSAL`.
 - `refusal` is `null` unless outcome is `REFUSAL`.
 - `profile_id` echoes `--profile-id` when provided, otherwise `null`.
-- `profile_sha256` remains reserved and `null` in current runtime behavior. With `--lock`, `input_verification` reports the verified lockfile(s), lock hash, and each input's matched bytes hash; without `--lock`, it is `null`.
+- `profile_sha256` remains reserved and `null` in current runtime behavior. With `--lock`, `input_verification` reports only the verified lockfile(s), lock self-hash, and matched input labels; without `--lock`, it is `null`. It never reports per-file content hashes, including under `--explicit`.
 - `key_viability` is `null` when neither `--key` nor the active profile provides a key.
 - `key_viability.unique_old` / `unique_new` are `null` if the complete key is unavailable in that file.
 - `key_viability.coverage` is `null` when key overlap is not computable.

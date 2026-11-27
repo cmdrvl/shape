@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use helpers::{fixture_path, run_shape};
+use helpers::{fixture_path, run_shape, run_shape_with_env};
 use serde_json::Value;
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -121,21 +121,129 @@ fn lock_passes_when_both_inputs_match_their_locked_hashes() {
         "sha256:cafe"
     );
     assert_eq!(
-        value["input_verification"]["files"]["old"]["path"],
+        value["input_verification"]["matched_inputs"]["old"],
         old.to_string_lossy().as_ref()
     );
     assert_eq!(
-        value["input_verification"]["files"]["old"]["bytes_hash"],
-        sha256_of(&old)
-    );
-    assert_eq!(
-        value["input_verification"]["files"]["new"]["path"],
+        value["input_verification"]["matched_inputs"]["new"],
         new.to_string_lossy().as_ref()
     );
+    assert!(value["input_verification"]["files"].is_null());
+    assert!(!result.stdout.contains("bytes_hash"));
+}
+
+fn assert_no_input_sha256(text: &str, old: &Path, new: &Path) {
+    for path in [old, new] {
+        let digest = sha256_of(path);
+        let hex = digest.strip_prefix("sha256:").unwrap_or(&digest);
+        assert!(
+            !text.contains(hex),
+            "input digest leaked in output: {hex}: {text}"
+        );
+    }
+}
+
+#[test]
+fn lock_receipt_does_not_disclose_input_hashes_on_default_surfaces() {
+    let dir = scratch_dir();
+    let old = fixture_path("basic_old.csv");
+    let new = fixture_path("basic_new.csv");
+    let lock = write_lock(&dir, &[(&old, &sha256_of(&old)), (&new, &sha256_of(&new))]);
+
+    let json = run_shape([
+        old.to_string_lossy().as_ref(),
+        new.to_string_lossy().as_ref(),
+        "--lock",
+        lock.to_string_lossy().as_ref(),
+        "--json",
+        "--no-witness",
+    ]);
+    assert_no_input_sha256(&json.stdout, &old, &new);
+    let json_value: Value = serde_json::from_str(&json.stdout).expect("default JSON");
+
+    let explicit = run_shape([
+        old.to_string_lossy().as_ref(),
+        new.to_string_lossy().as_ref(),
+        "--lock",
+        lock.to_string_lossy().as_ref(),
+        "--json",
+        "--explicit",
+        "--no-witness",
+    ]);
+    assert_no_input_sha256(&explicit.stdout, &old, &new);
+    let explicit_value: Value = serde_json::from_str(&explicit.stdout).expect("explicit JSON");
     assert_eq!(
-        value["input_verification"]["files"]["new"]["bytes_hash"],
-        sha256_of(&new)
+        explicit_value["input_verification"],
+        json_value["input_verification"]
     );
+
+    let human = run_shape([
+        old.to_string_lossy().as_ref(),
+        new.to_string_lossy().as_ref(),
+        "--lock",
+        lock.to_string_lossy().as_ref(),
+        "--no-witness",
+    ]);
+    assert_no_input_sha256(&human.stdout, &old, &new);
+    assert_no_input_sha256(&human.stderr, &old, &new);
+
+    let ledger = dir.join("witness.jsonl");
+    let witnessed = run_shape_with_env(
+        &[
+            old.to_string_lossy().as_ref(),
+            new.to_string_lossy().as_ref(),
+            "--lock",
+            lock.to_string_lossy().as_ref(),
+            "--json",
+        ],
+        &[("EPISTEMIC_WITNESS", ledger.to_string_lossy().as_ref())],
+    );
+    assert_eq!(witnessed.status, 0, "{}", witnessed.stderr);
+    let ledger_text = fs::read_to_string(&ledger).expect("witness ledger should be written");
+    assert_no_input_sha256(&ledger_text, &old, &new);
+    assert!(!ledger_text.contains("input_verification"));
+    assert!(!ledger_text.contains("bytes_hash"));
+
+    let capsule = dir.join("capsule");
+    let capsule_result = run_shape([
+        old.to_string_lossy().as_ref(),
+        new.to_string_lossy().as_ref(),
+        "--lock",
+        lock.to_string_lossy().as_ref(),
+        "--json",
+        "--no-witness",
+        "--capsule-dir",
+        capsule.to_string_lossy().as_ref(),
+    ]);
+    assert_eq!(capsule_result.status, 0, "{}", capsule_result.stderr);
+    for entry in walk_files(&capsule) {
+        let contents = fs::read_to_string(&entry);
+        assert!(
+            contents.is_ok(),
+            "capsule artifact should be text for this test: {}: {:?}",
+            entry.display(),
+            contents.as_ref().err()
+        );
+        let contents = contents.unwrap_or_default();
+        assert_no_input_sha256(&contents, &old, &new);
+    }
+}
+
+fn walk_files(root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(path) = pending.pop() {
+        for entry in fs::read_dir(path).expect("capsule directory should be readable") {
+            let entry = entry.expect("capsule entry should be readable");
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
 }
 
 #[test]

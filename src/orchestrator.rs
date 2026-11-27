@@ -437,9 +437,9 @@ fn build_input_verification(
     serde_json::json!({
         "verified": true,
         "locks": locks,
-        "files": {
-            "old": { "path": old_file, "bytes_hash": old.bytes_hash },
-            "new": { "path": new_file, "bytes_hash": new.bytes_hash },
+        "matched_inputs": {
+            "old": old_file,
+            "new": new_file,
         },
     })
 }

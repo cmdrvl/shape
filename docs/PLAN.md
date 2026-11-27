@@ -425,7 +425,7 @@ All domain outcomes emit exactly one JSON object on stdout. Every field is alway
 ### Nullable field rules
 
 - `profile_id`, `profile_sha256`: null unless `--profile` / `--profile-id` used
-- `input_verification`: null unless `--lock` used
+- `input_verification`: null unless `--lock` used; when present it contains only verified lockfile references and lock self-hashes, never per-file content hashes (including under `--explicit`)
 - `key_viability`: null if neither `--key` nor the active profile provides a key
 - `key_viability.unique_old`, `unique_new`: null if any key component is not found in that file
 - `key_viability.coverage`: null if the complete key is not found in either file
@@ -629,10 +629,7 @@ When a refusal fires before new file is parsed (e.g., E_IO on new), `dialect.new
     "locks": [
       { "path": "dec.lock.json", "lock_hash": "sha256:..." }
     ],
-    "files": {
-      "old": { "path": "nov.csv", "bytes_hash": "sha256:..." },
-      "new": { "path": "dec.csv", "bytes_hash": "sha256:..." }
-    }
+    "matched_inputs": { "old": "nov.csv", "new": "dec.csv" }
   }
 }
 ```

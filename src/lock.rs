@@ -40,7 +40,6 @@ struct Candidate {
 pub struct VerifiedInput {
     pub lockfile: String,
     pub lock_hash: Option<String>,
-    pub bytes_hash: String,
 }
 
 fn load_lockfile(path: &Path) -> Result<Lockfile, RefusalPayload> {
@@ -86,7 +85,6 @@ fn check_matches(
                 return Some(Ok(VerifiedInput {
                     lockfile: candidate.lockfile.to_string_lossy().into_owned(),
                     lock_hash: candidate.lock_hash.clone(),
-                    bytes_hash: candidate.bytes_hash.clone(),
                 }));
             }
             Some(_) => {}
