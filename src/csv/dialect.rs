@@ -102,7 +102,23 @@ fn detect_dialect_from_sample(
         ));
     }
 
-    let best_score = match probes.iter().map(|candidate| candidate.score).max() {
+    // A delimiter that leaves every physical line as a single field can
+    // appear to win on record count when another candidate correctly joins a
+    // quoted multi-line field. Prefer a candidate with multiple fields when
+    // one exists, then apply the documented score tuple within that set.
+    let scored_probes: Vec<&CandidateProbe> = if probes
+        .iter()
+        .any(|candidate| candidate.score.mode_fields > 1)
+    {
+        probes
+            .iter()
+            .filter(|candidate| candidate.score.mode_fields > 1)
+            .collect()
+    } else {
+        probes.iter().collect()
+    };
+
+    let best_score = match scored_probes.iter().map(|candidate| candidate.score).max() {
         Some(score) => score,
         None => {
             return Err(dialect_refusal(
@@ -115,9 +131,10 @@ fn detect_dialect_from_sample(
         }
     };
 
-    let tied_best: Vec<&CandidateProbe> = probes
+    let tied_best: Vec<&CandidateProbe> = scored_probes
         .iter()
         .filter(|candidate| candidate.score == best_score)
+        .copied()
         .collect();
 
     let Some(winner) = tied_best.first().copied() else {
@@ -401,5 +418,36 @@ mod tests {
 
         assert_eq!(detected.delimiter, b',');
         assert_eq!(detected.escape, EscapeMode::None);
+    }
+
+    #[test]
+    fn quoted_line_break_does_not_make_small_comma_files_suggest_tab() {
+        for data_rows in [3usize, 5, 10, 20, 50, 200] {
+            let mut bytes = String::from("id,name,amount\n1,\"two\nlines\",10\n");
+            for row in 2..=data_rows {
+                bytes.push_str(&format!("{row},b,20\n"));
+            }
+
+            let detected = detect_dialect(bytes.as_bytes(), "old.csv", "old.csv", "new.csv")
+                .expect("comma input with a quoted line break must detect comma");
+            assert_eq!(detected.delimiter, b',', "row count={data_rows}");
+            assert_eq!(detected.escape, EscapeMode::None, "row count={data_rows}");
+        }
+    }
+
+    #[test]
+    fn quoted_line_break_preserves_tab_semicolon_and_pipe_detection() {
+        for (delimiter_byte, label) in [(b'\t', "tab"), (b';', "semicolon"), (b'|', "pipe")] {
+            let delimiter = delimiter_byte as char;
+            let mut bytes = format!("id{delimiter}name{delimiter}amount\n");
+            bytes.push_str(&format!("1{delimiter}\"two\nlines\"{delimiter}10\n"));
+            bytes.push_str(&format!("2{delimiter}b{delimiter}20\n"));
+            bytes.push_str(&format!("3{delimiter}b{delimiter}30\n"));
+
+            let detected = detect_dialect(bytes.as_bytes(), "old.csv", "old.csv", "new.csv")
+                .expect("input with a quoted line break must detect its delimiter");
+            assert_eq!(detected.delimiter, delimiter_byte, "delimiter={label}");
+            assert_eq!(detected.escape, EscapeMode::None, "delimiter={label}");
+        }
     }
 }

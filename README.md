@@ -376,6 +376,9 @@ shape reads CSV and TSV with its own dialect detection (below), and JSONL, Parqu
 Each file's delimiter is detected independently. Candidate delimiters are evaluated in order:
 `,`, `\t`, `;`, `|`, `^`.
 
+When a quoted field contains a line break, single-column probes for other delimiters are not
+allowed to outrank a multi-column probe merely because they count the physical lines separately.
+
 If detection is ambiguous (or the winner yields a single-column parse), `shape` refuses with
 `E_DIALECT` and provides an actionable `next_command`.
 

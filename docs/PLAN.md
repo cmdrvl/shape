@@ -315,6 +315,7 @@ For each candidate:
 4. Score tuple: `(records_parsed, mode_count, mode_fields)` — compared lexicographically. `mode_count` is the number of records that share the most-common field count; `mode_fields` is that field count. Higher is better for both.
 
 Winner selection:
+- If any candidate has more than one modal field, discard single-column candidates before comparing scores. This prevents physical-line counting from outranking a multi-column parse when a quoted field contains a line break.
 - If one candidate has strictly the best score → use it
 - If multiple candidates have identical scores from identical samples → use the one with highest priority (comma > tab > semicolon > pipe > caret)
 - If identical scores but different samples → refuse with `E_DIALECT`
