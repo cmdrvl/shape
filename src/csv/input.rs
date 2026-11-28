@@ -38,6 +38,7 @@ impl EncodingIssue {
 }
 
 /// Read one input file and apply encoding guards.
+#[cfg(feature = "cli")]
 pub fn read_input_bytes(path: &Path) -> Result<Vec<u8>, RefusalPayload> {
     let raw = std::fs::read(path).map_err(|error| io_refusal(path, &error))?;
     let guarded = guard_input_bytes(path, &raw)?;
@@ -77,6 +78,7 @@ pub fn guard_input_bytes<'a>(path: &Path, raw: &'a [u8]) -> Result<&'a [u8], Ref
     Ok(stripped)
 }
 
+#[cfg(feature = "cli")]
 fn io_refusal(path: &Path, error: &std::io::Error) -> RefusalPayload {
     RefusalPayload::io(path.to_string_lossy().to_string(), error.to_string())
 }
@@ -133,6 +135,7 @@ impl ParseInputError {
 }
 
 /// Read and parse one CSV input through header normalization (PLAN steps 3-6/7-10).
+#[cfg(feature = "cli")]
 pub fn parse_input_file(
     path: &Path,
     forced_delimiter: Option<u8>,
@@ -150,6 +153,7 @@ pub fn parse_input_file(
 
 /// Read and parse one CSV input through header normalization while preserving
 /// best-effort dialect context on parse failures.
+#[cfg(feature = "cli")]
 pub fn parse_input_file_with_context(
     path: &Path,
     forced_delimiter: Option<u8>,
@@ -170,6 +174,7 @@ pub fn parse_input_file_with_context(
 /// `sheet` selects the worksheet of an `.xlsx`/`.xls` input and is ignored otherwise. JSONL,
 /// Parquet and XLSX inputs are rendered to comma-separated CSV by the shared tabular reader
 /// first; `forced_delimiter` and `sep=` directives do not apply to that rendering.
+#[cfg(feature = "cli")]
 pub fn parse_input_file_with_sheet(
     path: &Path,
     sheet: Option<&str>,
@@ -231,6 +236,110 @@ pub fn parse_input_file_with_sheet(
         path.to_path_buf(),
         raw_bytes,
         dialect,
+        headers,
+        data_offset,
+    ))
+}
+
+/// Parse caller-owned bytes through the same CSV header, dialect and scan setup used by the CLI.
+/// A tabular name hint is rendered by `cmdrvl-tabular` in memory when that feature is enabled;
+/// without it, CSV and TSV remain available but other containers return a typed format refusal.
+pub fn parse_input_bytes(
+    bytes: &[u8],
+    name_hint: &str,
+    forced_delimiter: Option<u8>,
+    old_file_for_next_command: &str,
+    new_file_for_next_command: &str,
+) -> Result<ParsedInput, ParseInputError> {
+    parse_input_bytes_with_sheet(
+        bytes,
+        name_hint,
+        None,
+        forced_delimiter,
+        old_file_for_next_command,
+        new_file_for_next_command,
+    )
+}
+
+/// [`parse_input_bytes`] with a worksheet selector for workbook name hints.
+pub fn parse_input_bytes_with_sheet(
+    bytes: &[u8],
+    name_hint: &str,
+    sheet: Option<&str>,
+    forced_delimiter: Option<u8>,
+    old_file_for_next_command: &str,
+    new_file_for_next_command: &str,
+) -> Result<ParsedInput, ParseInputError> {
+    let path = Path::new(name_hint);
+    let tabular = crate::tabular_input::is_tabular_name(name_hint);
+    #[cfg(not(feature = "tabular"))]
+    let _ = sheet;
+    let raw_bytes = if tabular {
+        #[cfg(feature = "tabular")]
+        {
+            crate::tabular_input::render_bytes_csv(bytes, Some(name_hint), sheet)
+                .map_err(ParseInputError::without_dialect)?
+        }
+        #[cfg(not(feature = "tabular"))]
+        {
+            return Err(ParseInputError::without_dialect(
+                RefusalPayload::input_format(
+                    name_hint,
+                    "E_FORMAT",
+                    "tabular input support is disabled",
+                    serde_json::json!({ "feature": "tabular" }),
+                ),
+            ));
+        }
+    } else {
+        guard_input_bytes(path, bytes)
+            .map_err(ParseInputError::without_dialect)?
+            .to_vec()
+    };
+
+    let sep = if tabular {
+        None
+    } else {
+        detect_sep_directive(&raw_bytes)
+    };
+    let (delimiter, consumed_bytes, primary_escape, allow_escape_fallback) = if tabular {
+        (b',', 0usize, EscapeMode::None, false)
+    } else if let Some(delimiter) = forced_delimiter {
+        (
+            delimiter,
+            sep.map_or(0, |directive| directive.consumed_bytes),
+            EscapeMode::None,
+            true,
+        )
+    } else if let Some(sep) = sep {
+        (sep.delimiter, sep.consumed_bytes, EscapeMode::None, true)
+    } else {
+        let autodetected = detect_dialect(
+            &raw_bytes,
+            name_hint,
+            old_file_for_next_command,
+            new_file_for_next_command,
+        )
+        .map_err(ParseInputError::without_dialect)?;
+        (autodetected.delimiter, 0, autodetected.escape, false)
+    };
+
+    let (headers, data_offset, escape) = parse_headers_with_escape_modes(
+        path,
+        &raw_bytes,
+        consumed_bytes,
+        delimiter,
+        primary_escape,
+        allow_escape_fallback,
+    )?;
+    Ok(ParsedInput::new(
+        path.to_path_buf(),
+        raw_bytes,
+        Dialect {
+            delimiter,
+            quote: b'"',
+            escape,
+        },
         headers,
         data_offset,
     ))
@@ -327,7 +436,7 @@ fn parse_headers_once(
     Ok((headers, data_offset))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "cli"))]
 mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};

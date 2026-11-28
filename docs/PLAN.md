@@ -74,6 +74,16 @@ shape robot-docs guide
 shape witness <query|last|count> [OPTIONS]
 ```
 
+### Filesystem-free library API
+
+`shape::api::evaluate_bytes` and `shape::api::evaluate_tables` accept caller-owned byte slices and
+return the structured `shape.v0` report used by the CLI. The API performs no filesystem, clock,
+environment or witness I/O. `evaluate_bytes_with_options` supplies CSV/TSV name hints, workbook
+selectors, delimiter, key, coverage and explicit-redaction options. With the default `cli`,
+`tabular` and `zstd` features, JSONL, Parquet and XLSX are decoded through
+`cmdrvl_tabular::open_bytes`; the no-default-features WASM build supports the pure CSV/TSV path and
+does not claim those container formats. The existing CLI remains on its path-bound orchestrator.
+
 ### Flags (v0.1 — core)
 
 - `--key <column>`: key column to check for alignment viability (uniqueness, empty values, coverage). The CLI flag accepts one column. An active profile may declare an ordered multi-column `key:` list (for example, `loan_id + property_id + begin_date`); shape evaluates the complete tuple.

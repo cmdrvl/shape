@@ -1,25 +1,36 @@
 #![forbid(unsafe_code)]
 
+pub mod api;
+#[cfg(feature = "cli")]
 pub mod capsule;
 pub mod checks;
+#[cfg(feature = "cli")]
 pub mod cli;
 pub mod csv;
+#[cfg(feature = "cli")]
 pub mod doctor;
 pub mod format;
+#[cfg(feature = "cli")]
 pub mod lock;
 pub mod normalize;
+#[cfg(feature = "cli")]
 pub mod orchestrator;
 pub mod output;
+#[cfg(feature = "cli")]
 pub(crate) mod paths;
+#[cfg(feature = "cli")]
 pub mod profile;
 pub mod refusal;
 pub mod scan;
 pub mod tabular_input;
+#[cfg(feature = "cli")]
 pub mod witness;
 
+#[cfg(feature = "cli")]
 pub(crate) const OPERATOR_JSON: &str = include_str!("../operator.json");
 
 /// Run the shape pipeline. Returns exit code (0, 1, or 2).
+#[cfg(feature = "cli")]
 pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 
@@ -200,6 +211,7 @@ pub fn run() -> Result<u8, Box<dyn std::error::Error>> {
     Ok(cli::exit::exit_code(result.outcome))
 }
 
+#[cfg(feature = "cli")]
 fn run_command(
     command: &cli::args::ShapeCommand,
     json_output: bool,
@@ -214,6 +226,7 @@ fn run_command(
     }
 }
 
+#[cfg(feature = "cli")]
 fn emit_reserved_flag_warnings(args: &cli::args::Args) {
     use std::io::Write;
     let mut stderr = std::io::stderr();
@@ -231,6 +244,7 @@ fn emit_reserved_flag_warnings(args: &cli::args::Args) {
     }
 }
 
+#[cfg(feature = "cli")]
 fn run_witness(action: &cli::args::WitnessAction) -> Result<u8, Box<dyn std::error::Error>> {
     use std::io::{self, Write};
 

@@ -76,7 +76,7 @@ fn parse_hex_byte(hex: &str) -> Result<u8, String> {
 }
 
 pub fn is_supported_delimiter_byte(byte: u8) -> bool {
-    byte.is_ascii() && byte != b'"' && byte != b'\n' && byte != b'\r' && byte != 0 && byte != 0x7f
+    crate::csv::sep::is_supported_delimiter_byte(byte)
 }
 
 #[cfg(test)]

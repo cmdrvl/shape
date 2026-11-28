@@ -1,4 +1,7 @@
-use crate::cli::delimiter::is_supported_delimiter_byte;
+/// Return whether a byte is a valid delimiter for both the CLI and in-memory readers.
+pub fn is_supported_delimiter_byte(byte: u8) -> bool {
+    byte.is_ascii() && byte != b'"' && byte != b'\n' && byte != b'\r' && byte != 0 && byte != 0x7f
+}
 
 /// Parsed `sep=` directive metadata from the first line of a CSV file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

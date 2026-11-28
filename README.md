@@ -375,6 +375,17 @@ shape inputs/old.csv inputs/new.csv --key loan_id --json --no-witness
 
 shape reads CSV and TSV with its own dialect detection (below), and JSONL, Parquet and XLSX/XLS through the shared [`cmdrvl-tabular`](https://github.com/cmdrvl/tabular) reader, chosen by extension (`.jsonl`/`.ndjson`, `.parquet`, `.xlsx`/`.xlsm`/`.xls`). Any pairing works, including cross-format (`old.xlsx` vs `new.parquet`). A non-CSV input is rendered to comma-separated CSV in memory and goes through the unchanged four checks, so the same data in any container gives the same verdict and checks (golden tests in `tests/formats.rs`: all 25 pairings, COMPATIBLE and INCOMPATIBLE).
 
+### Filesystem-free library API
+
+The `shape::api` module exposes `evaluate_bytes` and `evaluate_tables` for browser and embedded
+callers. They accept caller-owned bytes and return the same structured `shape.v0` JSON value as
+the CLI without reading paths, environment variables, the clock, or the witness ledger.
+`evaluate_bytes_with_options` accepts CSV/TSV name hints, workbook sheet selectors, a delimiter,
+key columns, coverage, and `explicit`; JSONL, Parquet and XLSX use the pinned
+`cmdrvl-tabular::open_bytes` reader when the `tabular` feature is enabled. The default feature set
+keeps the CLI's existing native behavior (`cli`, `tabular`, `zstd`); `--no-default-features` is the
+filesystem-free CSV/TSV/WASM build and deliberately does not claim container support.
+
 - `--sheet <name|index>` picks the worksheet of a workbook (0-based index); `--old-sheet` / `--new-sheet` override it per side. A workbook with more than one sheet and no selector is refused (`E_INPUT_FORMAT`, `tabular_code: E_AMBIGUOUS_SHEET`, sheet names in `detail.context.sheets`).
 - A file tabular cannot read (unsupported Parquet value type, extension that disagrees with the content, nested JSON value, zip bomb) is refused with `E_INPUT_FORMAT` and tabular's own code. Refusal details carry coordinates, sheet names and type names, never cell values. A missing file is the ordinary `E_IO`.
 - `--delimiter` and `sep=` directives apply to CSV/TSV only. In JSON output, the dialect receipt for a non-CSV input is `null` because the internal comma rendering is not the source format's dialect.
