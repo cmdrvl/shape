@@ -157,8 +157,11 @@ pub fn verify_input(input: &Path, lockfiles: &[PathBuf]) -> Result<VerifiedInput
             })?;
             let actual = observed
                 .iter()
-                .find(|(kind, _)| *kind == algorithm)
-                .map(|(_, digest)| digest.as_str())
+                .find_map(|(kind, digest)| match (*kind, algorithm) {
+                    (Algorithm::Blake3, Algorithm::Blake3)
+                    | (Algorithm::Sha256, Algorithm::Sha256) => Some(digest.as_str()),
+                    _ => None,
+                })
                 .unwrap_or_default();
             Err(RefusalPayload::input_drift(file, first.digest, actual))
         }
